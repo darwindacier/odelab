@@ -64,6 +64,19 @@
   .nota code{color:var(--oro); font-family:ui-monospace,Consolas,monospace}
   .error{color:var(--rojo); font-size:.75rem; min-height:1em}
   .ok{color:var(--verde)}
+  /* --- composición de fórmulas tipo LaTeX --- */
+  .tex{font-family:'Cambria Math','Latin Modern Math','STIX Two Math','Times New Roman',serif;
+       font-size:1.05em; line-height:1.18; white-space:nowrap}
+  .tex .mr{font-style:normal}
+  .tex .mfrac{display:inline-flex; flex-direction:column; vertical-align:-0.55em; text-align:center;
+              margin:0 .16em; font-size:.93em}
+  .tex .mfrac .mnum{border-bottom:1px solid currentColor; padding:0 .2em}
+  .tex .mfrac .mden{padding:0 .2em}
+  .tex .msqrt .mrad{border-top:1px solid currentColor; padding:0 .14em; margin-left:.04em}
+  .tex .msqrt::before{content:'\221A'; font-style:normal}
+  .tex sup{font-size:.68em; vertical-align:super; line-height:0}
+  .tex sub{font-size:.68em; vertical-align:sub; line-height:0}
+  .tex.bloque{display:block; text-align:center; white-space:normal; margin:7px 0; font-size:1.14em; color:var(--texto)}
   @media (max-width:900px){ .obra{flex-direction:column} aside{width:100%; height:46%; border-left:none; border-top:1px solid var(--borde)} }
 </style>
 </head>
@@ -71,7 +84,7 @@
 <header>
   <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">
     <h1>Laboratorio ODE 01 — Campos de direcciones y métodos numéricos</h1>
-    <span class="formula">y&prime; = f(x, y)</span>
+    <span class="formula" data-tex="y' = f(x, y)"></span>
   </div>
   <div class="stats">
     <span>Puntos del campo: <b id="ePuntos">0</b></span>
@@ -172,22 +185,146 @@
     <div class="tarjeta">
       <h2>Nota matemática</h2>
       <div class="nota">
-        El campo dibuja en cada punto un segmento con la direcci&oacute;n
-        <code>(1, f(x,y))</code> normalizada. Una <b>curva solución</b> es una trayectoria
-        tangente al campo.<br /><br />
-        Euler: <code>y_{n+1} = y_n + h f(x_n, y_n)</code>.<br />
-        Heun: <code>y_{n+1} = y_n + (h/2)(k_1 + k_2)</code>.<br />
-        RK4: promedio ponderado de cuatro pendientes
-        <code>k_1 … k_4</code>.<br /><br />
-        Error global <code>e(h) = |y_num(x*) − y(x*)|</code>; para un método de orden
-        <code>p</code> se cumple <code>e(h) ≈ C h^p</code>, y al reducir h a la mitad el error
-        cae por <code>2^p</code> (2, 4 y 16 para Euler, Heun y RK4).
+        El campo dibuja en cada punto un segmento con la dirección
+        <span data-tex="(1,\; f(x,y))"></span> normalizada. Una <b>curva solución</b> es una
+        trayectoria tangente al campo.<br /><br />
+        <b>Euler:</b> <span data-tex="y_{n+1} = y_n + h\, f(x_n, y_n)" data-bloque></span>
+        <b>Heun:</b> <span data-tex="y_{n+1} = y_n + \frac{h}{2}\,(k_1 + k_2)" data-bloque></span>
+        <b>RK4:</b> promedio ponderado de cuatro pendientes
+        <span data-tex="\frac{h}{6}\,(k_1 + 2k_2 + 2k_3 + k_4)" data-bloque></span>
+        Error global <span data-tex="e(h) = |y_{num}(x^*) - y(x^*)|"></span>; para un método de orden
+        <span data-tex="p"></span> se cumple <span data-tex="e(h) \approx C\,h^p"></span>, y al reducir
+        <span data-tex="h"></span> a la mitad el error cae por <span data-tex="2^p"></span>
+        (2, 4 y 16 para Euler, Heun y RK4).
       </div>
     </div>
   </aside>
 </div>
 
 <script>
+/* ==== TEX:BEGIN ==== */
+/* Composición de fórmulas con notación LaTeX, sin dependencias externas.
+   Admite \frac, \sqrt, ^{}, _{}, letras griegas, funciones y símbolos usuales. */
+const TEX_LETRAS_GRIEGAS = ['alpha','beta','gamma','Gamma','delta','Delta','epsilon','varepsilon',
+  'zeta','eta','theta','Theta','iota','kappa','lambda','mu','nu','xi','Xi','pi','Pi','rho','sigma',
+  'Sigma','tau','upsilon','phi','varphi','Phi','chi','psi','Psi','omega','Omega'];
+const TEX_SIMBOLOS = {
+  alpha:'α', beta:'β', gamma:'γ', Gamma:'Γ', delta:'δ', Delta:'Δ', epsilon:'ε', varepsilon:'ε',
+  zeta:'ζ', eta:'η', theta:'θ', Theta:'Θ', iota:'ι', kappa:'κ', lambda:'λ', mu:'μ', nu:'ν',
+  xi:'ξ', Xi:'Ξ', pi:'π', Pi:'Π', rho:'ρ', sigma:'σ', Sigma:'Σ', tau:'τ', upsilon:'υ',
+  phi:'φ', varphi:'φ', Phi:'Φ', chi:'χ', psi:'ψ', Psi:'Ψ', omega:'ω', Omega:'Ω',
+  infty:'∞', partial:'∂', nabla:'∇', cdot:'·', cdots:'⋯', ldots:'…', dots:'…', times:'×', div:'÷',
+  pm:'±', mp:'∓', approx:'≈', simeq:'≃', neq:'≠', equiv:'≡', leq:'≤', geq:'≥', ll:'≪', gg:'≫',
+  to:'→', mapsto:'↦', Rightarrow:'⇒', Leftrightarrow:'⇔', implies:'⇒', iff:'⇔',
+  int:'∫', iint:'∬', oint:'∮', sum:'∑', prod:'∏', in:'∈', notin:'∉', subset:'⊂', forall:'∀', exists:'∃',
+  ',' :'\u2009', ';':'\u2005', ':' :'\u2005', '!':'', quad:'\u2003', qquad:'\u2003\u2003',
+  left:'', right:'', big:'', Big:'', bigl:'', bigr:'', displaystyle:'', textstyle:'', limits:''
+};
+function texRender(s) {
+  let i = 0;
+  const simbolo = (nombre) => {
+    const v = TEX_SIMBOLOS[nombre];
+    if (TEX_LETRAS_GRIEGAS.indexOf(nombre) >= 0) return v || nombre;   // griegas: en cursiva
+    return `<span class="mr">${v !== undefined ? v : nombre}</span>`;
+  };
+  function grupoCrudo() {
+    if (i < s.length && s[i] === '{') {
+      let nivel = 1, j = i + 1;
+      while (j < s.length && nivel > 0) {
+        if (s[j] === '{') nivel++;
+        else if (s[j] === '}') nivel--;
+        if (nivel === 0) break;
+        j++;
+      }
+      const dentro = s.slice(i + 1, j);
+      i = j + 1;
+      return dentro;
+    }
+    const ch = s[i] || '';
+    i++;
+    return ch;
+  }
+  function grupo() {
+    if (i < s.length && s[i] === '{') {
+      let nivel = 1, j = i + 1;
+      while (j < s.length && nivel > 0) {
+        if (s[j] === '{') nivel++;
+        else if (s[j] === '}') nivel--;
+        if (nivel === 0) break;
+        j++;
+      }
+      const dentro = s.slice(i + 1, j);
+      i = j + 1;
+      return texRender(dentro);
+    }
+    if (i < s.length && s[i] === '\\') {
+      i++;
+      let j = i;
+      while (j < s.length && /[A-Za-z]/.test(s[j])) j++;
+      const nombre = s.slice(i, j);
+      i = j;
+      return simbolo(nombre);
+    }
+    const ch = s[i] || '';
+    i++;
+    if (/[0-9]/.test(ch)) return `<span class="mr">${ch}</span>`;
+    if (ch === '-') return '<span class="mr">−</span>';
+    if (ch === '*') return '<span class="mr">·</span>';
+    return ch;
+  }
+  let salida = '';
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === '^' || ch === '_') {
+      i++;
+      const contenido = grupo();
+      salida += ch === '^' ? `<sup>${contenido}</sup>` : `<sub>${contenido}</sub>`;
+      continue;
+    }
+    if (ch === '}') { i++; continue; }
+    if (ch === '\\') {
+      i++;
+      let nombre;
+      if (i < s.length && /[A-Za-z]/.test(s[i])) {
+        let j = i;
+        while (j < s.length && /[A-Za-z]/.test(s[j])) j++;
+        nombre = s.slice(i, j);
+        i = j;
+      } else {
+        nombre = s[i] || '';      // comandos de un carácter: \, \; \: \! \ 
+        i++;
+      }
+      if (nombre === 'frac' || nombre === 'dfrac' || nombre === 'tfrac') {
+        const num = grupo(), den = grupo();
+        salida += `<span class="mfrac"><span class="mnum">${num}</span><span class="mden">${den}</span></span>`;
+      } else if (nombre === 'sqrt') {
+        salida += `<span class="msqrt"><span class="mrad">${grupo()}</span></span>`;
+      } else if (nombre === 'text' || nombre === 'mathrm' || nombre === 'operatorname') {
+        salida += `<span class="mr">${grupoCrudo().replace(/[<>&]/g, '')}</span>`;
+      } else {
+        salida += simbolo(nombre);
+      }
+      continue;
+    }
+    if (ch === "'") { i++; salida += '<span class="mr">′</span>'; continue; }
+    if (ch === '{') { salida += grupo(); continue; }
+    i++;
+    if (/[0-9]/.test(ch)) salida += `<span class="mr">${ch}</span>`;
+    else if (ch === '-') salida += '<span class="mr">−</span>';
+    else if (ch === '*') salida += '<span class="mr">·</span>';
+    else salida += ch;
+  }
+  return salida;
+}
+function texHTML(src) { return `<span class="tex">${texRender(String(src))}</span>`; }
+function renderizarTeX(raiz) {
+  (raiz || document).querySelectorAll('[data-tex]').forEach((el) => {
+    el.innerHTML = texHTML(el.getAttribute('data-tex'));
+    if (el.hasAttribute('data-bloque')) el.classList.add('bloque');
+  });
+}
+/* ==== TEX:END ==== */
+
 /* ==== MATH:BEGIN ==== */
 const FUNCIONES = {
   sin: Math.sin, cos: Math.cos, tan: Math.tan, atan: Math.atan,
@@ -486,7 +623,8 @@ function ajustarLienzo() {
   cv.height = Math.max(1, Math.round(r.height * dpr));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
-window.addEventListener('resize', () => { ajustarLienzo(); dibujar(); });
+window.addEventListener('resize', () => { renderizarTeX();
+ajustarLienzo(); dibujar(); });
 
 function dibujar() {
   const r = cv.getBoundingClientRect();
