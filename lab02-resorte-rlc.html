@@ -1222,82 +1222,95 @@ function avanzar(dt) {
 /* ---------- dibujo del fenómeno ---------- */
 function dibujarResorte(W, H) {
   const x = sim.fen[0];
-  const escala = Math.min(H * 0.30, 190);
-  const techo = H * 0.10;
-  const yEq = H * 0.46;
-  const y = yEq + x * escala;
-  const cx = W * 0.42;
+  const techo = Math.max(16, H * 0.07), masa = 36, anchoM = 120;
+  const yMax = H - masa - 30;   // posición más baja de la cara superior de la masa
+  // recorrido en píxeles: el pistón del amortiguador debe quedar dentro del cilindro en todo el recorrido
+  const A = Math.max(12, Math.min(150, (yMax - techo - 20) / 4));
+  const yEq = yMax - A;
+  let amp = Math.max(0.05, Math.abs(x));
+  for (const h of sim.hist) amp = Math.max(amp, Math.abs(h[1]));
+  const escala = A / amp;
+  const y = Math.max(yEq - A, Math.min(yMax, yEq + x * escala));
+  const cx = W * 0.42, xs = cx - 30, xd = cx + 30;
 
-  ctxFen.strokeStyle = 'rgba(148,163,184,.55)';
-  ctxFen.lineWidth = 3;
-  ctxFen.beginPath(); ctxFen.moveTo(cx - 90, techo); ctxFen.lineTo(cx + 90, techo); ctxFen.stroke();
-
-  // resorte en zigzag entre el techo y la masa
-  const largo = Math.max(18, y - techo - 16);
-  const vueltas = 11;
-  ctxFen.strokeStyle = '#94a3b8';
-  ctxFen.lineWidth = 2;
-  ctxFen.beginPath();
-  ctxFen.moveTo(cx, techo);
-  for (let i = 0; i <= vueltas; i++) {
-    const t = i / vueltas;
-    const yy = techo + t * largo;
-    const xx = cx + (i === 0 || i === vueltas ? 0 : (i % 2 === 0 ? -1 : 1) * 22);
-    ctxFen.lineTo(xx, yy);
+  // equilibrio y regla con valores
+  ctxFen.setLineDash([6, 6]);
+  ctxFen.strokeStyle = 'rgba(226,232,240,.3)'; ctxFen.lineWidth = 1;
+  ctxFen.beginPath(); ctxFen.moveTo(W * 0.08, yEq + 0.5); ctxFen.lineTo(W * 0.92, yEq + 0.5); ctxFen.stroke();
+  ctxFen.setLineDash([]);
+  const { vals, paso } = marcasEje(-amp, amp, Math.max(3, Math.floor(2 * A / 22)));
+  ctxFen.strokeStyle = 'rgba(148,163,184,.5)';
+  ctxFen.font = `10px ${MONO}`; ctxFen.fillStyle = 'rgba(148,163,184,.85)'; ctxFen.textBaseline = 'middle';
+  ctxFen.beginPath(); ctxFen.moveTo(W * 0.08 + 0.5, yEq - A); ctxFen.lineTo(W * 0.08 + 0.5, yEq + A); ctxFen.stroke();
+  for (const v of vals) {
+    const yy = Math.round(yEq + v * escala) + 0.5;
+    ctxFen.beginPath(); ctxFen.moveTo(W * 0.08, yy); ctxFen.lineTo(W * 0.08 + 8, yy); ctxFen.stroke();
+    ctxFen.fillText(textoMarca(v, paso), W * 0.08 + 12, yy);
   }
+  ctxFen.fillText('x (m)', W * 0.08 + 12, yEq - A - 12);
+  ctxFen.textBaseline = 'alphabetic';
+
+  // techo con rayado
+  ctxFen.strokeStyle = 'rgba(148,163,184,.7)'; ctxFen.lineWidth = 3;
+  ctxFen.beginPath(); ctxFen.moveTo(cx - 95, techo); ctxFen.lineTo(cx + 95, techo); ctxFen.stroke();
+  ctxFen.lineWidth = 1; ctxFen.strokeStyle = 'rgba(148,163,184,.35)';
+  ctxFen.beginPath();
+  for (let xx = cx - 92; xx < cx + 95; xx += 10) { ctxFen.moveTo(xx, techo - 1); ctxFen.lineTo(xx + 8, techo - 9); }
   ctxFen.stroke();
 
-  // amortiguador
-  const xd = cx + 74;
-  ctxFen.strokeStyle = 'rgba(0,242,254,.55)';
-  ctxFen.lineWidth = 2;
-  ctxFen.strokeRect(xd - 13, yEq - 26, 26, 52);
+  // resorte: tramos rectos en los extremos y zigzag entre ellos, siempre unido al techo y a la masa
+  const tramo = 10, vueltas = 12, largoZ = Math.max(10, y - techo - 2 * tramo);
+  ctxFen.strokeStyle = '#a8b5c8'; ctxFen.lineWidth = 2; ctxFen.lineJoin = 'round';
   ctxFen.beginPath();
-  ctxFen.moveTo(xd, techo + 20); ctxFen.lineTo(xd, y - 6);
+  ctxFen.moveTo(xs, techo); ctxFen.lineTo(xs, techo + tramo);
+  for (let i = 1; i < vueltas; i++) ctxFen.lineTo(xs + (i % 2 ? 15 : -15), techo + tramo + largoZ * i / vueltas);
+  ctxFen.lineTo(xs, techo + tramo + largoZ); ctxFen.lineTo(xs, y);
   ctxFen.stroke();
-  ctxFen.fillStyle = 'rgba(0,242,254,.35)';
-  ctxFen.fillRect(xd - 11, y + 4, 22, 14);
+
+  // amortiguador: cilindro colgado del techo, pistón unido a la masa por el vástago
+  const cTop = yEq - 3 * A - 14, cBot = yEq - A - 4, vastago = (yEq - A) - (cTop + 5);
+  const yp = y - vastago;
+  ctxFen.strokeStyle = 'rgba(34,211,238,.7)'; ctxFen.lineWidth = 2;
+  ctxFen.beginPath(); ctxFen.moveTo(xd, techo); ctxFen.lineTo(xd, cTop); ctxFen.stroke();
+  ctxFen.fillStyle = 'rgba(34,211,238,.10)';
+  ctxFen.fillRect(xd - 12, cTop, 24, cBot - cTop);
+  ctxFen.beginPath();
+  ctxFen.moveTo(xd - 12, cTop); ctxFen.lineTo(xd - 12, cBot); ctxFen.moveTo(xd + 12, cTop); ctxFen.lineTo(xd + 12, cBot);
+  ctxFen.moveTo(xd - 12, cTop); ctxFen.lineTo(xd + 12, cTop);
+  ctxFen.stroke();
+  ctxFen.fillStyle = 'rgba(34,211,238,.9)'; ctxFen.fillRect(xd - 10, yp - 3, 20, 6);
+  ctxFen.strokeStyle = 'rgba(226,232,240,.75)'; ctxFen.lineWidth = 2;
+  ctxFen.beginPath(); ctxFen.moveTo(xd, yp + 3); ctxFen.lineTo(xd, y); ctxFen.stroke();
 
   // masa
-  ctxFen.fillStyle = 'rgba(0,242,254,.85)';
-  ctxFen.fillRect(cx - 42, y, 84, 34);
+  ctxFen.fillStyle = 'rgba(34,211,238,.88)';
   ctxFen.strokeStyle = '#e2e8f0'; ctxFen.lineWidth = 1.5;
-  ctxFen.strokeRect(cx - 42, y, 84, 34);
-  ctxFen.fillStyle = '#040814';
-  ctxFen.font = 'bold 13px ui-monospace, monospace';
-  ctxFen.fillText('m', cx - 5, y + 22);
-
-  // fuerza aplicada
-  const F = P.F0 * Math.cos(P.w * sim.t);
-  const largoF = Math.max(-110, Math.min(110, F * 22));
-  ctxFen.strokeStyle = '#ffd166'; ctxFen.lineWidth = 3;
   ctxFen.beginPath();
-  ctxFen.moveTo(cx + 42, y + 17);
-  ctxFen.lineTo(cx + 42 + largoF, y + 17);
-  ctxFen.stroke();
+  if (ctxFen.roundRect) ctxFen.roundRect(cx - anchoM / 2, y, anchoM, masa, 6); else ctxFen.rect(cx - anchoM / 2, y, anchoM, masa);
+  ctxFen.fill(); ctxFen.stroke();
+  ctxFen.fillStyle = '#04121a'; ctxFen.font = `bold 14px ${MONO}`; ctxFen.textAlign = 'center'; ctxFen.textBaseline = 'middle';
+  ctxFen.fillText('m', cx, y + masa / 2);
+
+  // fuerza aplicada: vertical, en la dirección de x (positiva hacia abajo)
+  const F = P.F0 * Math.cos(P.w * sim.t);
+  const xf = cx + anchoM / 2 + 26, yf = y + masa / 2;
+  const largoF = Math.max(-46, Math.min(46, F * 18));
+  ctxFen.strokeStyle = '#ffd166'; ctxFen.fillStyle = '#ffd166'; ctxFen.lineWidth = 3;
+  ctxFen.beginPath(); ctxFen.moveTo(xf, yf); ctxFen.lineTo(xf, yf + largoF); ctxFen.stroke();
   if (Math.abs(largoF) > 6) {
     const s = Math.sign(largoF);
     ctxFen.beginPath();
-    ctxFen.moveTo(cx + 42 + largoF, y + 17);
-    ctxFen.lineTo(cx + 42 + largoF - s * 9, y + 11);
-    ctxFen.lineTo(cx + 42 + largoF - s * 9, y + 23);
-    ctxFen.closePath(); ctxFen.fillStyle = '#ffd166'; ctxFen.fill();
+    ctxFen.moveTo(xf, yf + largoF + s * 4); ctxFen.lineTo(xf - 6, yf + largoF - s * 6); ctxFen.lineTo(xf + 6, yf + largoF - s * 6);
+    ctxFen.closePath(); ctxFen.fill();
   }
+  ctxFen.font = `italic 12px ${FUENTE}`; ctxFen.textAlign = 'left';
+  ctxFen.fillText('F(t)', xf + 10, yf);
+  ctxFen.textBaseline = 'alphabetic';
 
-  // equilibrio y regla
-  ctxFen.setLineDash([6, 6]);
-  ctxFen.strokeStyle = 'rgba(226,232,240,.35)'; ctxFen.lineWidth = 1;
-  ctxFen.beginPath(); ctxFen.moveTo(W * 0.08, yEq); ctxFen.lineTo(W * 0.92, yEq); ctxFen.stroke();
-  ctxFen.setLineDash([]);
-  ctxFen.strokeStyle = 'rgba(148,163,184,.5)';
-  for (let v = -2; v <= 2; v += 0.5) {
-    const yy = yEq + v * escala;
-    ctxFen.beginPath(); ctxFen.moveTo(W * 0.08, yy); ctxFen.lineTo(W * 0.08 + (Math.abs(v % 1) < 1e-6 ? 12 : 6), yy); ctxFen.stroke();
-  }
-  ctxFen.fillStyle = 'rgba(226,232,240,.75)';
-  ctxFen.font = '12px ui-monospace, monospace';
-  ctxFen.fillText(`x = ${x.toFixed(3)} m`, W * 0.08, H * 0.06);
-  ctxFen.fillText(`F(t) = ${F.toFixed(2)} N`, W * 0.08, H * 0.06 + 16);
+  ctxFen.fillStyle = 'rgba(226,232,240,.8)'; ctxFen.font = `12px ${MONO}`; ctxFen.textAlign = 'right';
+  ctxFen.fillText(`x = ${x.toFixed(3)} m`, W - 70, techo + 12);
+  ctxFen.fillText(`F(t) = ${F.toFixed(2)} N`, W - 70, techo + 28);
+  ctxFen.textAlign = 'left';
 }
 
 function dibujarRLC(W, H) {
@@ -1583,9 +1596,10 @@ function dibujarGraficas() {
     }
   } else if (graf.panel === 'decaimiento') {
     const aj = graf.ajuste;
-    if (!aj) {
+    if (!aj || P.F0 > 0) {
       marcoGrafica(ctxGraf, cd, [0, 1], [0, 1], { titulo, sinNumerosY: true });
-      mensajeVacio(ctxGraf, cd, 'Se necesitan 4 picos: ponga F₀ = 0 y déjelo oscilar');
+      mensajeVacio(ctxGraf, cd, P.F0 > 0 ? 'Ponga F₀ = 0: el ajuste mide ζ en el decaimiento libre'
+                                         : 'Se necesitan 4 picos: ponga F₀ = 0 y déjelo oscilar');
       return;
     }
     const ln = picosDecrecientes(sim.hist.map(h => [h[0], h[1]])).filter(v => v > 1e-6).map(Math.log);
@@ -1630,7 +1644,11 @@ function actualizarPanel() {
       `<tr><td>&omega;&#8320; del modelo</td><td>${cl.w0.toFixed(3)} rad/s</td></tr>`;
   }
   graf.ajuste = ajusteDecaimiento();
-  if (graf.ajuste) {
+  if (graf.ajuste && P.F0 > 0) {
+    document.getElementById('textoAjuste').innerHTML =
+      'Con F₀ &gt; 0 los picos son de la respuesta forzada y no miden ζ. ' +
+      'Ponga <b>F₀ = 0</b> para ver el decaimiento libre y estimar ζ con los datos.';
+  } else if (graf.ajuste) {
     const dif = Math.abs(graf.ajuste.zetaEst - graf.ajuste.zetaTeo) / Math.max(1e-9, graf.ajuste.zetaTeo);
     document.getElementById('textoAjuste').innerHTML =
       `De los picos medidos: <b>&zeta; = ${graf.ajuste.zetaEst.toFixed(4)}</b>, ` +
