@@ -1162,8 +1162,8 @@ ajustarLienzo();
 comparar();
 dibujar();
 try {
-  if (localStorage.getItem('odelab01-guia') !== 'vista') abrirGuia(true);
-} catch (e) { abrirGuia(true); }
+  if (localStorage.getItem('odelab01-guia') !== 'vista' && window.self === window.top) abrirGuia(true);
+} catch (e) { if (window.self === window.top) abrirGuia(true); }
 </script>
 <div class="avisos" id="avisos"></div>
 
