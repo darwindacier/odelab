@@ -13,7 +13,7 @@ Sitio publicado: https://darwindacier.github.io/odelab/
 |---|------|-----------------|--------------|
 | 01 | Campos de direcciones, isóclinas y métodos numéricos | `f(x, y)` escrita por el estudiante, paso `h`, condiciones iniciales | error global y orden empírico de Euler, Heun y RK4 medidos contra la solución exacta |
 | 02 | Resorte–masa–amortiguador y circuito RLC | `m/L`, `c/R`, `k/(1/C)`, `F₀/V₀`, `ω`, condiciones iniciales | el fenómeno simulado contra el modelo lineal: discrepancia, RMS y clasificación del efecto no modelado |
-| 03 | Tanque de mezclas, enfriamiento de Newton y circuito RC | caudales, concentraciones, temperaturas, `R` y `C` | *(en preparación)* |
+| 03 | Tanque de mezclas, enfriamiento de Newton y circuito RC | caudales, concentración de entrada, `k`, temperaturas, `R` y `C` | valor final y τ medidos contra el modelo; clasificador de fuga, degradación, aporte, radiación y resistencia extra |
 | 04 | Sistemas, plano de fase y estabilidad | matrices 2×2, modelos depredador–presa | *(en preparación)* |
 
 ## Qué hace especiales a estos laboratorios
@@ -33,7 +33,9 @@ Sitio publicado: https://darwindacier.github.io/odelab/
    métricas y barrido de resonancia) y un CSV con separador `;` y coma decimal, listo para Excel en
    español.
 5. **Autónomos y sin dependencias.** Un solo archivo HTML por laboratorio, sin librerías, sin
-   servidor y sin conexión después de la primera carga. Funcionan en computador y en móvil.
+   servidor y sin conexión después de la primera carga. Funcionan en computador y en móvil. Las
+   fórmulas se componen con un pequeño renderizador LaTeX propio (fracciones, raíces, subíndices,
+   letras griegas), de modo que se leen como matemáticas sin cargar KaTeX ni MathJax.
 
 ## Uso en el aula
 
