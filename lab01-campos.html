@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Laboratorio ODE 01 — Campos de direcciones y métodos numéricos</title>
+<style>
+  :root{
+    --fondo:#060a17; --panel:rgba(12,19,38,.92); --borde:rgba(0,242,254,.25);
+    --cian:#00f2fe; --oro:#ffd166; --texto:#e2e8f0; --tenue:#94a3b8; --rojo:#f87171; --verde:#4ade80;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--fondo); color:var(--texto); height:100vh; width:100vw; overflow:hidden;
+    display:flex; flex-direction:column;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+    padding:9px 16px; background:rgba(8,13,28,.95); border-bottom:1px solid var(--borde); z-index:10;
+  }
+  h1{font-size:1rem; font-weight:700; background:linear-gradient(90deg,var(--cian),var(--oro));
+     -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent}
+  .formula{font-family:'Cambria Math','Times New Roman',serif; font-style:italic; font-size:.9rem;
+           color:var(--oro); background:rgba(255,209,102,.1); border:1px solid rgba(255,209,102,.3);
+           padding:3px 9px; border-radius:6px}
+  .stats{display:flex; gap:14px; font-size:.78rem; color:var(--tenue); flex-wrap:wrap}
+  .stats b{color:var(--cian); font-family:ui-monospace,Consolas,monospace}
+  .obra{display:flex; flex:1; overflow:hidden}
+  .lienzo{flex:1; position:relative; background:radial-gradient(circle at center,#0b132b 0%,#050814 100%);
+          overflow:hidden; display:flex; align-items:center; justify-content:center}
+  canvas{display:block; width:100%; height:100%; cursor:crosshair}
+  .pista{position:absolute; bottom:12px; left:12px; max-width:62%; background:rgba(8,13,28,.86);
+         border:1px solid var(--borde); border-radius:8px; padding:7px 12px; font-size:.76rem;
+         color:var(--tenue); pointer-events:none}
+  aside{width:352px; background:var(--panel); border-left:1px solid var(--borde); padding:12px;
+        overflow-y:auto; display:flex; flex-direction:column; gap:10px}
+  .tarjeta{background:rgba(15,23,42,.75); border:1px solid rgba(148,163,184,.16); border-radius:10px;
+           padding:11px 12px; display:flex; flex-direction:column; gap:8px}
+  .tarjeta h2{font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--cian)}
+  .fila{display:flex; gap:6px; flex-wrap:wrap}
+  button{flex:1; min-width:52px; background:rgba(0,242,254,.12); color:var(--texto);
+         border:1px solid rgba(0,242,254,.35); padding:7px 8px; border-radius:7px; font-size:.78rem;
+         font-weight:600; cursor:pointer; transition:all .15s ease}
+  button:hover{background:rgba(0,242,254,.25); border-color:var(--cian)}
+  button.activo{background:linear-gradient(135deg,var(--cian),#0284c7); color:#040814; border-color:transparent}
+  button.oro{background:rgba(255,209,102,.14); border-color:rgba(255,209,102,.45); color:var(--oro)}
+  button.oro.activo{background:var(--oro); color:#050814}
+  button.mini{font-size:.7rem; padding:4px 5px; background:rgba(30,41,59,.8); border-color:rgba(148,163,184,.25)}
+  select,input[type=text]{width:100%; background:rgba(30,41,59,.9); color:var(--texto);
+         border:1px solid rgba(148,163,184,.3); border-radius:7px; padding:7px; font-size:.82rem}
+  input[type=text]{font-family:ui-monospace,Consolas,monospace}
+  .deslizador{display:flex; flex-direction:column; gap:4px}
+  .etiqueta{display:flex; justify-content:space-between; font-size:.79rem; color:var(--tenue)}
+  .etiqueta b{color:var(--oro); font-family:ui-monospace,Consolas,monospace}
+  input[type=range]{width:100%; accent-color:var(--cian); cursor:pointer}
+  .casillas{display:flex; flex-direction:column; gap:6px; font-size:.8rem}
+  .casillas label{display:flex; align-items:center; gap:8px; cursor:pointer}
+  .casillas input{accent-color:var(--cian); width:14px; height:14px}
+  table{width:100%; border-collapse:collapse; font-size:.73rem; font-family:ui-monospace,Consolas,monospace}
+  th{text-align:left; color:var(--tenue); padding:3px 5px; border-bottom:1px solid rgba(148,163,184,.2)}
+  td{padding:2px 5px; border-bottom:1px solid rgba(148,163,184,.08)}
+  .nota{font-size:.72rem; color:var(--tenue); line-height:1.5}
+  .nota code{color:var(--oro); font-family:ui-monospace,Consolas,monospace}
+  .error{color:var(--rojo); font-size:.75rem; min-height:1em}
+  .ok{color:var(--verde)}
+  @media (max-width:900px){ .obra{flex-direction:column} aside{width:100%; height:46%; border-left:none; border-top:1px solid var(--borde)} }
+</style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">
+    <h1>Laboratorio ODE 01 — Campos de direcciones y métodos numéricos</h1>
+    <span class="formula">y&prime; = f(x, y)</span>
+  </div>
+  <div class="stats">
+    <span>Puntos del campo: <b id="ePuntos">0</b></span>
+    <span>Curvas: <b id="eCurvas">0</b></span>
+    <span>h = <b id="eH">0.20</b></span>
+    <span>Error (h): <b id="eError">—</b></span>
+    <span>Orden empírico: <b id="eOrden">—</b></span>
+  </div>
+</header>
+
+<div class="obra">
+  <div class="lienzo">
+    <canvas id="cv"></canvas>
+    <div class="pista" id="pista">
+      Haga clic en el lienzo para lanzar una curva solución desde ese punto (se integra hacia
+      adelante y hacia atrás). Rueda del ratón: acercar. May&uacute;s + arrastrar: desplazar.
+    </div>
+  </div>
+
+  <aside>
+    <div class="tarjeta">
+      <h2>Ecuaci&oacute;n diferencial</h2>
+      <select id="selCatalogo"></select>
+      <input type="text" id="txtF" value="x + y" spellcheck="false" />
+      <div class="fila">
+        <button id="btnAplicar" class="activo">Aplicar f(x, y)</button>
+      </div>
+      <div class="error" id="eMsg"></div>
+      <div class="nota">
+        Se admite <code>+ − * / ^</code>, par&eacute;ntesis, <code>x</code>, <code>y</code>,
+        <code>pi</code>, <code>e</code> y funciones <code>sin cos tan exp ln log sqrt abs sinh cosh tanh atan</code>.
+        Escriba el producto con <code>*</code>.
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Isóclinas (f = k)</h2>
+      <div class="casillas">
+        <label><input type="checkbox" id="cIsoclinas" /> Mostrar la isóclina f(x, y) = k</label>
+      </div>
+      <div class="deslizador">
+        <div class="etiqueta"><span>Nivel k</span><b id="eK">0.00</b></div>
+        <input type="range" id="rangoK" min="-4" max="4" value="0" step="0.05" />
+      </div>
+      <div class="nota">Sobre una isóclina todas las soluciones tienen la misma pendiente.</div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Métodos numéricos</h2>
+      <select id="selMetodo">
+        <option value="euler">Euler (orden 1)</option>
+        <option value="heun">Euler mejorado / Heun (orden 2)</option>
+        <option value="rk4" selected>Runge–Kutta 4 (orden 4)</option>
+      </select>
+      <div class="deslizador">
+        <div class="etiqueta"><span>Paso h</span><b id="eH2">0.200</b></div>
+        <input type="range" id="rangoH" min="0.005" max="0.5" value="0.2" step="0.005" />
+      </div>
+      <div class="fila">
+        <button id="btnTabla">Comparar los tres</button>
+      </div>
+      <div class="nota" id="notaExacta"></div>
+      <table>
+        <thead><tr><th>Método</th><th>y(x*)</th><th>Error</th><th>Orden</th></tr></thead>
+        <tbody id="tablaMetodos"></tbody>
+      </table>
+      <div class="nota">
+        El <b>orden</b> se estima con h, h/2, h/4 y h/8: pendiente de log(error) contra log(h).
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Reto autoverificable</h2>
+      <div class="nota" id="textoReto"></div>
+      <div class="nota" id="estadoReto"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Capas y vista</h2>
+      <div class="casillas">
+        <label><input type="checkbox" id="cCampo" checked /> Campo de direcciones</label>
+        <label><input type="checkbox" id="cCurvas" checked /> Curvas solución</label>
+        <label><input type="checkbox" id="cExacta" checked /> Solución exacta (si se conoce)</label>
+        <label><input type="checkbox" id="cRejilla" checked /> Rejilla y ejes</label>
+        <label><input type="checkbox" id="cNumerica" /> Curva del método numérico</label>
+      </div>
+      <div class="fila">
+        <button class="mini" data-vista="4">±4</button>
+        <button class="mini" data-vista="2">±2</button>
+        <button class="mini" data-vista="10">10</button>
+        <button class="mini" data-vista="20">20</button>
+      </div>
+      <div class="fila">
+        <button id="btnLimpiar">Borrar curvas</button>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Nota matemática</h2>
+      <div class="nota">
+        El campo dibuja en cada punto un segmento con la direcci&oacute;n
+        <code>(1, f(x,y))</code> normalizada. Una <b>curva solución</b> es una trayectoria
+        tangente al campo.<br /><br />
+        Euler: <code>y_{n+1} = y_n + h f(x_n, y_n)</code>.<br />
+        Heun: <code>y_{n+1} = y_n + (h/2)(k_1 + k_2)</code>.<br />
+        RK4: promedio ponderado de cuatro pendientes
+        <code>k_1 … k_4</code>.<br /><br />
+        Error global <code>e(h) = |y_num(x*) − y(x*)|</code>; para un método de orden
+        <code>p</code> se cumple <code>e(h) ≈ C h^p</code>, y al reducir h a la mitad el error
+        cae por <code>2^p</code> (2, 4 y 16 para Euler, Heun y RK4).
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* ==== MATH:BEGIN ==== */
+const FUNCIONES = {
+  sin: Math.sin, cos: Math.cos, tan: Math.tan, atan: Math.atan,
+  exp: Math.exp, ln: Math.log, log: Math.log10, sqrt: Math.sqrt,
+  abs: Math.abs, sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh
+};
+
+/* Compila una expresión en x, y a una función (x, y) => número.
+   Descenso recursivo: + - (menor precedencia), * /, unarios, ^ (derecha). */
+function compilarExpresion(fuente) {
+  const s = String(fuente).replace(/\s+/g, "");
+  if (!s) throw new Error("la expresión está vacía");
+  let i = 0;
+  const esLetra = c => !!c && /[A-Za-z]/.test(c);
+  const esDigito = c => !!c && /[0-9.]/.test(c);
+  const falla = msg => {
+    throw new Error(msg + (i < s.length ? " cerca de «" + s.slice(i, i + 6) + "»" : " al final"));
+  };
+
+  function numero() {
+    const inicio = i;
+    while (i < s.length && esDigito(s[i])) i++;
+    if (i === inicio) falla("se esperaba un número");
+    const v = parseFloat(s.slice(inicio, i));
+    if (!Number.isFinite(v)) falla("número inválido");
+    return v;
+  }
+
+  function primario() {
+    if (s[i] === "(") {
+      i++;
+      const v = expresion();
+      if (s[i] !== ")") falla("falta cerrar un paréntesis");
+      i++;
+      return v;
+    }
+    if (esDigito(s[i])) {
+      const v = numero();
+      return () => v;
+    }
+    if (esLetra(s[i])) {
+      let j = i;
+      while (j < s.length && esLetra(s[j])) j++;
+      const nombre = s.slice(i, j).toLowerCase();
+      i = j;
+      if (nombre === "x") return (x) => x;
+      if (nombre === "y") return (x, y) => y;
+      if (nombre === "pi") return () => Math.PI;
+      if (nombre === "e") return () => Math.E;
+      const F = FUNCIONES[nombre];
+      if (!F) falla("función desconocida «" + nombre + "»");
+      if (s[i] !== "(") falla("falta ( después de " + nombre);
+      i++;
+      const arg = expresion();
+      if (s[i] !== ")") falla("falta cerrar el paréntesis de " + nombre);
+      i++;
+      return (x, y) => F(arg(x, y));
+    }
+    falla("símbolo inesperado «" + (s[i] || "fin") + "»");
+    return () => 0;
+  }
+  function potencia() {
+    const base = primario();
+    if (s[i] === "^") {
+      i++;
+      const expo = potencia();
+      return (x, y) => Math.pow(base(x, y), expo(x, y));
+    }
+    return base;
+  }
+  function unario() {
+    if (s[i] === "-") { i++; const v = unario(); return (x, y) => -v(x, y); }
+    if (s[i] === "+") { i++; return unario(); }
+    return potencia();
+  }
+  function termino() {
+    let v = unario();
+    while (s[i] === "*" || s[i] === "/") {
+      const op = s[i++]; const r = unario(); const a = v;
+      v = op === "*" ? (x, y) => a(x, y) * r(x, y) : (x, y) => a(x, y) / r(x, y);
+    }
+    return v;
+  }
+  function expresion() {
+    let v = termino();
+    while (s[i] === "+" || s[i] === "-") {
+      const op = s[i++]; const r = termino(); const a = v;
+      v = op === "+" ? (x, y) => a(x, y) + r(x, y) : (x, y) => a(x, y) - r(x, y);
+    }
+    return v;
+  }
+  const f = expresion();
+  if (i < s.length) falla("sobra «" + s.slice(i, i + 8) + "»");
+  return f;
+}
+
+/* Catálogo de ecuaciones con solución exacta cuando se conoce. */
+const CATALOGO = [
+  { nombre: "y' = x + y   (lineal, isóclinas rectas)", expr: "x + y",
+    exacta: (x, x0, y0) => (y0 + x0 + 1) * Math.exp(x - x0) - x - 1 },
+  { nombre: "y' = y   (crecimiento exponencial)", expr: "y",
+    exacta: (x, x0, y0) => y0 * Math.exp(x - x0) },
+  { nombre: "y' = x − y", expr: "x - y",
+    exacta: (x, x0, y0) => x - 1 + (y0 - x0 + 1) * Math.exp(-(x - x0)) },
+  { nombre: "y' = 2x   (separables)", expr: "2*x",
+    exacta: (x, x0, y0) => y0 + x * x - x0 * x0 },
+  { nombre: "y' = y(1 − y)   (logístico de Verhulst)", expr: "y*(1 - y)",
+    exacta: (x, x0, y0) => 1 / (1 + ((1 - y0) / y0) * Math.exp(-(x - x0))) },
+  { nombre: "y' = −2xy   (campana de Gauss)", expr: "-2*x*y",
+    exacta: (x, x0, y0) => y0 * Math.exp(-(x * x - x0 * x0)) },
+  { nombre: "y' = cos(x)", expr: "cos(x)",
+    exacta: (x, x0, y0) => y0 + Math.sin(x) - Math.sin(x0) },
+  { nombre: "y' = −x/y   (circunferencias)", expr: "-x/y",
+    exacta: null, invariante: (x, y, x0, y0) => x * x + y * y - (x0 * x0 + y0 * y0) },
+  { nombre: "y' = sin(x)·y", expr: "sin(x)*y",
+    exacta: (x, x0, y0) => y0 * Math.exp(Math.cos(x0) - Math.cos(x)) }
+];
+
+const PASOS = {
+  euler: (f, x, y, h) => y + h * f(x, y),
+  heun: (f, x, y, h) => { const k1 = f(x, y), k2 = f(x + h, y + h * k1); return y + (h / 2) * (k1 + k2); },
+  rk4: (f, x, y, h) => {
+    const k1 = f(x, y);
+    const k2 = f(x + h / 2, y + h * k1 / 2);
+    const k3 = f(x + h / 2, y + h * k2 / 2);
+    const k4 = f(x + h, y + h * k3);
+    return y + (h / 6) * (k1 + 2 * k2 + 2 * k3 + k4);
+  }
+};
+
+/* Integra y' = f(x,y) desde (x0,y0) hasta x1. h puede ser positiva o negativa. */
+function integrar(f, x0, y0, x1, h, metodo, maxPasos) {
+  const paso = PASOS[metodo] || PASOS.rk4;
+  const limite = maxPasos || 60000;
+  if (!(h > 0)) throw new Error("h debe ser positivo");
+  const s = Math.sign(x1 - x0) || 1;
+  const hh = s * h;
+  const pts = [[x0, y0]];
+  let x = x0, y = y0, n = 0;
+  while (s * (x1 - x) > 1e-12 && n < limite) {
+    const hAplicado = Math.abs(hh) > Math.abs(x1 - x) ? x1 - x : hh;
+    y = paso(f, x, y, hAplicado);
+    x += hAplicado;
+    n++;
+    if (!Number.isFinite(y)) break;
+    pts.push([x, y]);
+  }
+  return pts;
+}
+
+/* Campo de direcciones normalizado sobre una malla. */
+function campoDirecciones(f, xmin, xmax, ymin, ymax, nx, ny) {
+  const segs = [];
+  const dx = (xmax - xmin) / (nx - 1), dy = (ymax - ymin) / (ny - 1);
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < ny; j++) {
+      const x = xmin + i * dx, y = ymin + j * dy;
+      let m;
+      try { m = f(x, y); } catch (e) { m = NaN; }
+      if (!Number.isFinite(m)) continue;
+      const norma = Math.hypot(1, m) || 1;
+      segs.push({ x, y, ux: 1 / norma, uy: m / norma, m });
+    }
+  }
+  return segs;
+}
+
+/* Isóclinas: contorno f(x,y) = k por marching squares sobre una malla. */
+function isoclinas(f, k, xmin, xmax, ymin, ymax, n) {
+  const segs = [];
+  const dx = (xmax - xmin) / n, dy = (ymax - ymin) / n;
+  const esquinas = [[0, 0], [1, 0], [1, 1], [0, 1]];
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const x0 = xmin + i * dx, y0 = ymin + j * dy;
+      const vals = esquinas.map(([a, b]) => {
+        let v;
+        try { v = f(x0 + a * dx, y0 + b * dy) - k; } catch (e) { v = NaN; }
+        return v;
+      });
+      if (vals.some(v => !Number.isFinite(v))) continue;
+      const cortes = [];
+      for (let e = 0; e < 4; e++) {
+        const a = vals[e], b = vals[(e + 1) % 4];
+        if ((a < 0 && b >= 0) || (a >= 0 && b < 0)) {
+          const t = a / (a - b);
+          const p = esquinas[e], q = esquinas[(e + 1) % 4];
+          cortes.push([x0 + (p[0] + (q[0] - p[0]) * t) * dx, y0 + (p[1] + (q[1] - p[1]) * t) * dy]);
+        }
+      }
+      if (cortes.length === 2) segs.push([cortes[0], cortes[1]]);
+      else if (cortes.length === 4) { segs.push([cortes[0], cortes[1]]); segs.push([cortes[2], cortes[3]]); }
+    }
+  }
+  return segs;
+}
+
+/* Orden empírico: pendiente de log(error) frente a log(h) con h, h/2, h/4, h/8. */
+function ordenEmpirico(f, x0, y0, x1, exacta, metodo) {
+  const hs = [0.2, 0.1, 0.05, 0.025];
+  const lx = [], ly = [];
+  for (const h of hs) {
+    const pts = integrar(f, x0, y0, x1, h, metodo);
+    const err = Math.abs(pts[pts.length - 1][1] - exacta(x1));
+    if (err > 0 && Number.isFinite(err)) { lx.push(Math.log(h)); ly.push(Math.log(err)); }
+  }
+  const n = lx.length;
+  if (n < 2) return null;
+  const mx = lx.reduce((a, b) => a + b, 0) / n, my = ly.reduce((a, b) => a + b, 0) / n;
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) { num += (lx[i] - mx) * (ly[i] - my); den += (lx[i] - mx) ** 2; }
+  return den === 0 ? null : Math.abs(num / den);
+}
+
+/* Defecto (residuo) de una curva numérica: y' ≈ f(x, y) medido con diferencias centrales. */
+function defectoMaximo(f, pts) {
+  let peor = 0;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [xa, ya] = pts[i - 1], [xb, yb] = pts[i + 1], [x, y] = pts[i];
+    const pend = (yb - ya) / (xb - xa);
+    let m;
+    try { m = f(x, y); } catch (e) { m = NaN; }
+    if (Number.isFinite(m)) peor = Math.max(peor, Math.abs(pend - m));
+  }
+  return peor;
+}
+/* ==== MATH:END ==== */
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const selCatalogo = document.getElementById('selCatalogo');
+const txtF = document.getElementById('txtF');
+const btnAplicar = document.getElementById('btnAplicar');
+const eMsg = document.getElementById('eMsg');
+const cIsoclinas = document.getElementById('cIsoclinas');
+const rangoK = document.getElementById('rangoK');
+const eK = document.getElementById('eK');
+const selMetodo = document.getElementById('selMetodo');
+const rangoH = document.getElementById('rangoH');
+const eH2 = document.getElementById('eH2');
+const eH = document.getElementById('eH');
+const btnTabla = document.getElementById('btnTabla');
+const tablaMetodos = document.getElementById('tablaMetodos');
+const notaExacta = document.getElementById('notaExacta');
+const textoReto = document.getElementById('textoReto');
+const estadoReto = document.getElementById('estadoReto');
+const cCampo = document.getElementById('cCampo');
+const cCurvas = document.getElementById('cCurvas');
+const cExacta = document.getElementById('cExacta');
+const cRejilla = document.getElementById('cRejilla');
+const cNumerica = document.getElementById('cNumerica');
+const ePuntos = document.getElementById('ePuntos');
+const eCurvas = document.getElementById('eCurvas');
+const eError = document.getElementById('eError');
+const eOrden = document.getElementById('eOrden');
+const btnLimpiar = document.getElementById('btnLimpiar');
+const pista = document.getElementById('pista');
+
+let f = compilarExpresion("x + y");
+let exprTexto = "x + y";
+let exactaActual = CATALOGO[0].exacta;
+let invarianteActual = null;
+let curvas = [];
+let comparacion = [];
+let vista = { cx: 0, cy: 0, ancho: 8 };
+let metodo = 'rk4';
+let h = 0.2;
+let k = 0;
+let arrastrando = false, ultimo = null;
+
+const COLORES = ['#00f2fe', '#ffd166', '#4ade80', '#f472b6', '#a78bfa', '#fb923c', '#38bdf8'];
+
+function mundoDesdePantalla(px, py) {
+  const r = cv.getBoundingClientRect();
+  const escala = r.width / vista.ancho;
+  return {
+    x: vista.cx + (px - r.width / 2) / escala,
+    y: vista.cy - (py - r.height / 2) / escala
+  };
+}
+function pantallaDesdeMundo(x, y) {
+  const r = cv.getBoundingClientRect();
+  const escala = r.width / vista.ancho;
+  return { x: r.width / 2 + (x - vista.cx) * escala, y: r.height / 2 - (y - vista.cy) * escala };
+}
+function rangoY() {
+  const r = cv.getBoundingClientRect();
+  const alto = vista.ancho * (r.height / r.width);
+  return [vista.cy - alto / 2, vista.cy + alto / 2];
+}
+
+function ajustarLienzo() {
+  const r = cv.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.max(1, Math.round(r.width * dpr));
+  cv.height = Math.max(1, Math.round(r.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', () => { ajustarLienzo(); dibujar(); });
+
+function dibujar() {
+  const r = cv.getBoundingClientRect();
+  const W = r.width, H = r.height;
+  ctx.clearRect(0, 0, W, H);
+  const [ymin, ymax] = rangoY();
+  const xmin = vista.cx - vista.ancho / 2, xmax = vista.cx + vista.ancho / 2;
+  const escala = W / vista.ancho;
+
+  // Rejilla y ejes
+  if (cRejilla.checked) {
+    const paso = Math.pow(10, Math.round(Math.log10(vista.ancho / 8)));
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(56,189,248,.09)';
+    for (let x = Math.ceil(xmin / paso) * paso; x <= xmax; x += paso) {
+      const p = pantallaDesdeMundo(x, 0);
+      ctx.beginPath(); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, H); ctx.stroke();
+    }
+    for (let y = Math.ceil(ymin / paso) * paso; y <= ymax; y += paso) {
+      const p = pantallaDesdeMundo(0, y);
+      ctx.beginPath(); ctx.moveTo(0, p.y); ctx.lineTo(W, p.y); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(56,189,248,.35)';
+    const o = pantallaDesdeMundo(0, 0);
+    ctx.beginPath(); ctx.moveTo(o.x, 0); ctx.lineTo(o.x, H); ctx.moveTo(0, o.y); ctx.lineTo(W, o.y); ctx.stroke();
+  }
+
+  // Isóclinas
+  if (cIsoclinas.checked) {
+    const segs = isoclinas(f, k, xmin, xmax, ymin, ymax, 90);
+    ctx.strokeStyle = 'rgba(255,209,102,.65)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for (const [a, b] of segs) {
+      const pa = pantallaDesdeMundo(a[0], a[1]), pb = pantallaDesdeMundo(b[0], b[1]);
+      ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+    }
+    ctx.stroke();
+  }
+
+  // Campo de direcciones
+  if (cCampo.checked) {
+    const nx = Math.max(14, Math.min(46, Math.round(W / 26)));
+    const ny = Math.max(10, Math.min(34, Math.round(H / 26)));
+    const segs = campoDirecciones(f, xmin, xmax, ymin, ymax, nx, ny);
+    ePuntos.textContent = String(segs.length);
+    const largo = Math.min(11, (W / nx) * 0.42);
+    ctx.lineWidth = 1;
+    for (const s of segs) {
+      const p = pantallaDesdeMundo(s.x, s.y);
+      const n = Math.hypot(1, s.m) || 1;
+      const ux = 1 / n, uy = -s.m / n;   // en pantalla la y crece hacia abajo
+      const intensidad = Math.min(0.9, 0.22 + Math.abs(s.m) / 4);
+      ctx.strokeStyle = `rgba(0,242,254,${intensidad.toFixed(2)})`;
+      ctx.beginPath();
+      ctx.moveTo(p.x - ux * largo / 2, p.y - uy * largo / 2);
+      ctx.lineTo(p.x + ux * largo / 2, p.y + uy * largo / 2);
+      ctx.stroke();
+    }
+  }
+
+  // Curvas del usuario
+  if (cCurvas.checked) {
+    curvas.forEach((c, idx) => {
+      ctx.strokeStyle = COLORES[idx % COLORES.length];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      c.pts.forEach(([x, y], i) => {
+        const p = pantallaDesdeMundo(x, y);
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      const p0 = pantallaDesdeMundo(c.x0, c.y0);
+      ctx.fillStyle = COLORES[idx % COLORES.length];
+      ctx.beginPath(); ctx.arc(p0.x, p0.y, 3.5, 0, Math.PI * 2); ctx.fill();
+    });
+  }
+
+  // Solución exacta y curva numérica de la comparación
+  if (comparacion.length) {
+    const base = comparacion[0];
+    if (cExacta.checked && base.exacta) {
+      ctx.strokeStyle = 'rgba(226,232,240,.55)';
+      ctx.setLineDash([6, 5]);
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      const N = 300;
+      for (let i = 0; i <= N; i++) {
+        const x = base.x0 + (base.x1 - base.x0) * (i / N);
+        const p = pantallaDesdeMundo(x, base.exacta(x));
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (cNumerica.checked) {
+      const c = comparacion.find(z => z.metodo === metodo) || base;
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      c.pts.forEach(([x, y], i) => {
+        const p = pantallaDesdeMundo(x, y);
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+    }
+  }
+}
+
+/* ---------- comparación de métodos ---------- */
+function intervaloComparacion() {
+  if (curvas.length) {
+    const c = curvas[curvas.length - 1];
+    return { x0: c.x0, y0: c.y0, x1: c.x1, exacta: c.exacta, invariante: c.invariante };
+  }
+  const [ymin, ymax] = rangoY();
+  const x0 = vista.cx - vista.ancho / 4, x1 = vista.cx + vista.ancho / 4;
+  return { x0, y0: (ymin + ymax) / 2, x1, exacta: exactaActual, invariante: invarianteActual };
+}
+
+function comparar() {
+  const { x0, y0, x1, exacta, invariante } = intervaloComparacion();
+  comparacion = [];
+  const metodos = [
+    { metodo: 'euler', nombre: 'Euler' },
+    { metodo: 'heun', nombre: 'Heun' },
+    { metodo: 'rk4', nombre: 'RK4' }
+  ];
+  tablaMetodos.innerHTML = '';
+  for (const m of metodos) {
+    const pts = integrar(f, x0, y0, x1, h, m.metodo);
+    const yFin = pts[pts.length - 1][1];
+    const err = exacta ? Math.abs(yFin - exacta(x1, x0, y0)) : null;
+    const orden = exacta ? ordenEmpirico(f, x0, y0, x1, x => exacta(x, x0, y0), m.metodo) : null;
+    comparacion.push({ metodo: m.metodo, nombre: m.nombre, pts, yFin, err, orden, x0, x1, exacta: exacta ? (x => exacta(x, x0, y0)) : null, invariante });
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${m.nombre}</td><td>${yFin.toFixed(6)}</td>` +
+                   `<td>${err === null ? '—' : err.toExponential(2)}</td>` +
+                   `<td>${orden === null ? '—' : orden.toFixed(2)}</td>`;
+    tablaMetodos.appendChild(tr);
+  }
+  const escogido = comparacion.find(z => z.metodo === metodo);
+  eError.textContent = escogido.err === null ? '—' : escogido.err.toExponential(2);
+  eOrden.textContent = escogido.orden === null ? '—' : escogido.orden.toFixed(2);
+  notaExacta.innerHTML = exacta
+    ? 'Solución exacta conocida: el error se mide contra ella.'
+    : 'Esta ecuación no tiene solución explícita en el catálogo: se informa el defecto máximo.';
+  if (!exacta) {
+    const d = defectoMaximo(f, escogido.pts);
+    eError.textContent = d.toExponential(2) + ' (defecto)';
+  }
+  revisarReto(escogido, exacta ? exacta(x1, x0, y0) : null, y0);
+}
+
+function revisarReto(escogido, yExacto, y0) {
+  const alcance = Math.max(1e-9, Math.abs((yExacto ?? y0) - y0));
+  const umbral = 0.01 * Math.max(alcance, 1);
+  const cumple = escogido.err !== null && escogido.err < umbral;
+  textoReto.innerHTML = `Con <b>${escogido.nombre}</b> y h = <b>${h.toFixed(3)}</b>, logre que el ` +
+    `error global sea menor que el 1 % del desplazamiento de la solución ` +
+    `(${umbral.toExponential(2)}).`;
+  estadoReto.innerHTML = cumple
+    ? '<span class="ok">✔ Reto cumplido con este paso.</span>'
+    : '✘ Todavía no: reduzca h o cambie de método.';
+}
+
+/* ---------- interacción ---------- */
+selCatalogo.innerHTML = CATALOGO.map((c, i) => `<option value="${i}">${c.nombre}</option>`).join('');
+selCatalogo.addEventListener('change', (e) => {
+  const c = CATALOGO[parseInt(e.target.value, 10)];
+  txtF.value = c.expr;
+  aplicarExpresion(c.expr, c.exacta, c.invariante);
+});
+
+function aplicarExpresion(texto, exacta, invariante) {
+  try {
+    const compilada = compilarExpresion(texto);
+    compilada(1, 1);   // prueba de evaluación
+    f = compilada;
+    exprTexto = texto;
+    exactaActual = exacta ?? null;
+    invarianteActual = invariante ?? null;
+    eMsg.textContent = '';
+    curvas = [];
+    comparar();
+    dibujar();
+  } catch (err) {
+    eMsg.textContent = 'No se pudo interpretar: ' + err.message;
+  }
+}
+btnAplicar.addEventListener('click', () => aplicarExpresion(txtF.value, null, null));
+txtF.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnAplicar.click(); });
+
+cv.addEventListener('pointerdown', (e) => {
+  if (e.shiftKey) { arrastrando = true; ultimo = { x: e.clientX, y: e.clientY }; return; }
+  const r = cv.getBoundingClientRect();
+  const m = mundoDesdePantalla(e.clientX - r.left, e.clientY - r.top);
+  const [ymin, ymax] = rangoY();
+  const xmin = vista.cx - vista.ancho / 2, xmax = vista.cx + vista.ancho / 2;
+  const paso = vista.ancho / 500;
+  const adelante = integrar(f, m.x, m.y, xmax, paso, 'rk4');
+  const atras = integrar(f, m.x, m.y, xmin, paso, 'rk4');
+  const pts = atras.slice(1).reverse().concat(adelante);
+  curvas.push({ x0: m.x, y0: m.y, x1: xmax, pts, exacta: exactaActual, invariante: invarianteActual });
+  if (curvas.length > 7) curvas.shift();
+  eCurvas.textContent = String(curvas.length);
+  comparar();
+  dibujar();
+});
+cv.addEventListener('pointermove', (e) => {
+  if (!arrastrando || !ultimo) return;
+  const r = cv.getBoundingClientRect();
+  const escala = r.width / vista.ancho;
+  vista.cx -= (e.clientX - ultimo.x) / escala;
+  vista.cy += (e.clientY - ultimo.y) / escala;
+  ultimo = { x: e.clientX, y: e.clientY };
+  dibujar();
+});
+window.addEventListener('pointerup', () => { arrastrando = false; ultimo = null; });
+cv.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect();
+  const antes = mundoDesdePantalla(e.clientX - r.left, e.clientY - r.top);
+  vista.ancho *= e.deltaY > 0 ? 1.12 : 0.89;
+  vista.ancho = Math.max(0.2, Math.min(200, vista.ancho));
+  const despues = mundoDesdePantalla(e.clientX - r.left, e.clientY - r.top);
+  vista.cx += antes.x - despues.x;
+  vista.cy += antes.y - despues.y;
+  dibujar();
+}, { passive: false });
+
+rangoK.addEventListener('input', (e) => { k = parseFloat(e.target.value); eK.textContent = k.toFixed(2); dibujar(); });
+cIsoclinas.addEventListener('change', dibujar);
+selMetodo.addEventListener('change', (e) => { metodo = e.target.value; comparar(); dibujar(); });
+rangoH.addEventListener('input', (e) => {
+  h = parseFloat(e.target.value);
+  eH2.textContent = h.toFixed(3); eH.textContent = h.toFixed(3);
+  comparar(); dibujar();
+});
+btnTabla.addEventListener('click', () => { comparar(); dibujar(); });
+[cCampo, cCurvas, cExacta, cRejilla, cNumerica].forEach(c => c.addEventListener('change', dibujar));
+btnLimpiar.addEventListener('click', () => {
+  curvas = []; comparacion = []; tablaMetodos.innerHTML = '';
+  eCurvas.textContent = '0'; eError.textContent = '—'; eOrden.textContent = '—';
+  dibujar();
+});
+document.querySelectorAll('button.mini').forEach(b => {
+  b.addEventListener('click', () => {
+    const v = parseFloat(b.dataset.vista);
+    // Para 10 y 20 se mira el cuadrante positivo (logístico, crecimiento);
+    // para 2 y 4 se centra el origen.
+    vista = v >= 10 ? { cx: v / 2, cy: v / 2, ancho: v } : { cx: 0, cy: 0, ancho: v * 2 };
+    dibujar();
+  });
+});
+
+ajustarLienzo();
+comparar();
+dibujar();
+</script>
+</body>
+</html>
