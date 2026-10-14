@@ -12,7 +12,7 @@ TMP = Path(__file__).resolve().parent / "_tmp"
 NODE = shutil.which("node") or sys.exit("No se encontró node en el PATH")
 XLSX = TMP / "exportado3.xlsx"
 
-script = re.search(r"<script>(.*)</script>", HTML.read_text(encoding="utf-8"), re.S).group(1)
+script = max(re.findall(r"<script>(.*?)</script>", HTML.read_text(encoding="utf-8"), re.S), key=len)
 TMP.mkdir(exist_ok=True)
 (TMP / "completo3.js").write_text(script, encoding="utf-8")
 

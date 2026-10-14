@@ -313,10 +313,26 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
   #cvFen{flex:0 0 auto; height:340px}
   #cvGraf{flex:0 0 auto; height:600px}
 }
+/* dentro del portal la pestaña ya nombra el laboratorio: cabecera compacta */
+.incrustado header{padding:6px 14px; gap:10px}
+.incrustado .marca-lab .logo, .incrustado .marca-lab > div{display:none}
+/* pantallas bajas (portátiles con escala de 125-150 %) */
+@media (max-height:780px) and (min-width:901px){
+  header{padding:6px 14px}
+  .logo{width:30px; height:30px; flex-basis:30px; font-size:16px; border-radius:9px}
+  h1{font-size:.9rem}
+  .sub-lab{font-size:.62rem}
+  .formula{font-size:.86rem; padding:3px 10px}
+  .chip{padding:3px 9px; min-width:64px}
+  .chip span{font-size:.56rem}
+  .chip b{font-size:.78rem}
+  #cvFen,.vista:first-child{flex:.82}
+}
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s !important; transition-duration:.001s !important}
 }
 </style>
+<script>if (window.self !== window.top) document.documentElement.classList.add('incrustado');</script>
 </head>
 <body>
 <header>

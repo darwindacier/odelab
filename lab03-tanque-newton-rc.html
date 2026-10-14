@@ -313,10 +313,26 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
   #cvFen{flex:0 0 auto; height:340px}
   #cvGraf{flex:0 0 auto; height:600px}
 }
+/* dentro del portal la pestaña ya nombra el laboratorio: cabecera compacta */
+.incrustado header{padding:6px 14px; gap:10px}
+.incrustado .marca-lab .logo, .incrustado .marca-lab > div{display:none}
+/* pantallas bajas (portátiles con escala de 125-150 %) */
+@media (max-height:780px) and (min-width:901px){
+  header{padding:6px 14px}
+  .logo{width:30px; height:30px; flex-basis:30px; font-size:16px; border-radius:9px}
+  h1{font-size:.9rem}
+  .sub-lab{font-size:.62rem}
+  .formula{font-size:.86rem; padding:3px 10px}
+  .chip{padding:3px 9px; min-width:64px}
+  .chip span{font-size:.56rem}
+  .chip b{font-size:.78rem}
+  #cvFen,.vista:first-child{flex:.82}
+}
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s !important; transition-duration:.001s !important}
 }
 </style>
+<script>if (window.self !== window.top) document.documentElement.classList.add('incrustado');</script>
 </head>
 <body>
 <header>
@@ -1217,7 +1233,7 @@ function dibujarTanque(W, H) {
   const m = modeloDe(P);
   const c = sim.real[0], V = Math.max(0, sim.real[1]);
   const maxV = Math.max(P.V0 * 1.25, V);
-  const x0 = W * 0.30, x1 = W * 0.66, yTop = H * 0.16, yBot = H * 0.86;
+  const x0 = W * 0.30, x1 = W * 0.66, yTop = Math.max(H * 0.16, 64), yBot = Math.min(H * 0.86, H - 62);
   const nivel = yBot - (yBot - yTop) * (V / maxV);
   const frac = Math.max(0, Math.min(1, c / Math.max(1e-6, P.cin * 1.2)));
   ctxFen.fillStyle = `rgba(0,242,254,${0.10 + 0.55 * frac})`;

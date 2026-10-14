@@ -9,8 +9,8 @@ total_fallos = 0
 
 for ruta in sorted(BASE.glob("lab0*.html")):
     texto = ruta.read_text(encoding="utf-8")
-    script = re.search(r"<script>(.*)</script>", texto, re.S).group(1)
-    html = texto[:texto.index("<script>")]
+    script = max(re.findall(r"<script>(.*?)</script>", texto, re.S), key=len)
+    html = texto[:texto.index(script)]
 
     ids_html = set(re.findall(r'id="([^"]+)"', texto))
     ids_js = set(re.findall(r"getElementById\(['\"]([^'\"]+)['\"]\)", script))

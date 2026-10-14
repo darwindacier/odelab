@@ -6,7 +6,7 @@ from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
 texto = (BASE / "index.html").read_text(encoding="utf-8")
-script = re.search(r"<script>(.*)</script>", texto, re.S).group(1)
+script = max(re.findall(r"<script>(.*?)</script>", texto, re.S), key=len)
 
 paneles = re.findall(r'data-panel="([^"]+)"[^>]*?(?:data-src="([^"]+)")?', texto)
 pestanas = re.findall(r'class="pestana[^"]*" data-panel="([^"]+)"', texto)

@@ -19,7 +19,7 @@ fallos = 0
 
 for lab in LABS:
     texto = (BASE / lab).read_text(encoding="utf-8")
-    script = re.search(r"<script>(.*)</script>", texto, re.S).group(1)
+    script = max(re.findall(r"<script>(.*?)</script>", texto, re.S), key=len)
     tex = script[script.index("/* ==== TEX:BEGIN ==== */"):script.index("/* ==== TEX:END ==== */")]
 
     # fórmulas escritas en el HTML y fórmulas construidas en el código (con \\)
