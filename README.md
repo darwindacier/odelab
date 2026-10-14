@@ -43,6 +43,19 @@ Predicción → manipulación → comparación con el modelo → descarga de dat
 diagnóstico del supuesto que falla. Encaja como laboratorio de clase, como trabajo autónomo en
 lunes festivos o como material de estudio antes del examen.
 
+## Interfaz
+
+- **Guía de entrada** la primera vez que se abre cada laboratorio (se puede desactivar y reabrir con
+  el botón *Guía*).
+- **Globos de ayuda** en cada tarjeta, con la explicación de qué hace y qué mirar.
+- **Panel lateral plegable** para dejar más espacio a las gráficas, y **pausa** de la simulación.
+- **Chips de estado** en la cabecera: los parámetros derivados y la discrepancia, que cambia de
+  color cuando el modelo se aleja de lo medido.
+- **Comparadores visuales** de barras entre el valor medido y el del modelo.
+- **Avisos emergentes** al exportar, al pausar y al superar un reto.
+- **Atajos:** `espacio` pausa, `R` reinicia, `P` pliega el panel, `G` guarda el PNG, `Esc` cierra la guía.
+- Diseño adaptable: en pantallas estrechas las gráficas y el panel se apilan.
+
 ## Verificación técnica
 
 Antes de publicar, cada laboratorio pasa una batería de aserciones numéricas ejecutada con Node
