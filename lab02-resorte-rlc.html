@@ -5,98 +5,334 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Laboratorio ODE 02 — Resorte y circuito RLC: el fenómeno frente al modelo</title>
 <style>
-  :root{
-    --fondo:#060a17; --panel:rgba(12,19,38,.92); --borde:rgba(0,242,254,.25);
-    --cian:#00f2fe; --oro:#ffd166; --texto:#e2e8f0; --tenue:#94a3b8; --rojo:#f87171; --verde:#4ade80;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--fondo); color:var(--texto); height:100vh; width:100vw; overflow:hidden;
-       display:flex; flex-direction:column; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
-  header{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
-         padding:9px 16px; background:rgba(8,13,28,.95); border-bottom:1px solid var(--borde); z-index:10}
-  h1{font-size:.98rem; font-weight:700; background:linear-gradient(90deg,var(--cian),var(--oro));
-     -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent}
-  .formula{font-family:'Cambria Math','Times New Roman',serif; font-style:italic; font-size:.88rem;
-           color:var(--oro); background:rgba(255,209,102,.1); border:1px solid rgba(255,209,102,.3);
-           padding:3px 9px; border-radius:6px}
-  .stats{display:flex; gap:13px; font-size:.76rem; color:var(--tenue); flex-wrap:wrap}
-  .stats b{color:var(--cian); font-family:ui-monospace,Consolas,monospace}
-  .obra{display:flex; flex:1; overflow:hidden}
-  .vistas{flex:1; display:flex; flex-direction:column; overflow:hidden}
-  .vista{position:relative; background:radial-gradient(circle at center,#0b132b 0%,#050814 100%); overflow:hidden}
-  #cvFen{flex:1.15}
-  #cvGraf{flex:1; border-top:1px solid rgba(148,163,184,.14)}
-  canvas{display:block; width:100%; height:100%}
-  aside{width:356px; background:var(--panel); border-left:1px solid var(--borde); padding:11px;
-        overflow-y:auto; display:flex; flex-direction:column; gap:9px}
-  .tarjeta{background:rgba(15,23,42,.75); border:1px solid rgba(148,163,184,.16); border-radius:10px;
-           padding:10px 11px; display:flex; flex-direction:column; gap:7px}
-  .tarjeta h2{font-size:.71rem; text-transform:uppercase; letter-spacing:.08em; color:var(--cian)}
-  .fila{display:flex; gap:6px; flex-wrap:wrap}
-  button{flex:1; min-width:48px; background:rgba(0,242,254,.12); color:var(--texto);
-         border:1px solid rgba(0,242,254,.35); padding:6px 8px; border-radius:7px; font-size:.76rem;
-         font-weight:600; cursor:pointer; transition:all .15s ease}
-  button:hover{background:rgba(0,242,254,.25); border-color:var(--cian)}
-  button.activo{background:linear-gradient(135deg,var(--cian),#0284c7); color:#040814; border-color:transparent}
-  button.oro{background:rgba(255,209,102,.14); border-color:rgba(255,209,102,.45); color:var(--oro)}
-  button.oro.activo{background:var(--oro); color:#050814}
-  button.mini{font-size:.69rem; padding:4px 5px; background:rgba(30,41,59,.8); border-color:rgba(148,163,184,.25)}
-  select{width:100%; background:rgba(30,41,59,.9); color:var(--texto); border:1px solid rgba(148,163,184,.3);
-         border-radius:7px; padding:6px; font-size:.8rem}
-  .deslizador{display:flex; flex-direction:column; gap:2px}
-  .etiqueta{display:flex; justify-content:space-between; font-size:.76rem; color:var(--tenue)}
-  .etiqueta b{color:var(--oro); font-family:ui-monospace,Consolas,monospace}
-  input[type=range]{width:100%; accent-color:var(--cian); cursor:pointer}
-  table{width:100%; border-collapse:collapse; font-size:.72rem; font-family:ui-monospace,Consolas,monospace}
-  th{text-align:left; color:var(--tenue); padding:2px 5px; border-bottom:1px solid rgba(148,163,184,.2)}
-  td{padding:2px 5px; border-bottom:1px solid rgba(148,163,184,.08)}
-  .nota{font-size:.71rem; color:var(--tenue); line-height:1.5}
-  .nota code{color:var(--oro); font-family:ui-monospace,Consolas,monospace}
-  .casillas{display:flex; flex-direction:column; gap:5px; font-size:.75rem}
-  .casillas label{display:flex; align-items:center; gap:7px; cursor:pointer}
-  .casillas input{accent-color:var(--cian); width:14px; height:14px}
-  .ok{color:var(--verde)} .mal{color:var(--rojo)}
-  /* --- composición de fórmulas tipo LaTeX --- */
-  .tex{font-family:'Cambria Math','Latin Modern Math','STIX Two Math','Times New Roman',serif;
-       font-size:1.05em; line-height:1.18; white-space:nowrap}
-  .tex .mr{font-style:normal}
-  .tex .mfrac{display:inline-flex; flex-direction:column; vertical-align:-0.55em; text-align:center;
-              margin:0 .16em; font-size:.93em}
-  .tex .mfrac .mnum{border-bottom:1px solid currentColor; padding:0 .2em}
-  .tex .mfrac .mden{padding:0 .2em}
-  .tex .msqrt .mrad{border-top:1px solid currentColor; padding:0 .14em; margin-left:.04em}
-  .tex .msqrt::before{content:'\221A'; font-style:normal}
-  .tex sup{font-size:.68em; vertical-align:super; line-height:0}
-  .tex sub{font-size:.68em; vertical-align:sub; line-height:0}
-  .tex.bloque{display:block; text-align:center; white-space:normal; margin:7px 0; font-size:1.14em; color:var(--texto)}
-  @media (max-width:900px){ .obra{flex-direction:column} aside{width:100%; height:46%; border-left:none; border-top:1px solid var(--borde)} }
+/* ============ Sistema visual de los laboratorios ODE ============ */
+:root{
+  --fondo:#050914; --fondo2:#0a1020;
+  --panel:rgba(13,20,38,.88); --panel2:rgba(20,29,52,.7);
+  --borde:rgba(120,160,220,.16); --borde-fuerte:rgba(34,211,238,.38);
+  --cian:#22d3ee; --cian-osc:#0891b2; --oro:#fbbf24; --verde:#34d399; --rojo:#f87171;
+  --violeta:#a78bfa; --rosa:#f472b6;
+  --texto:#e8eef8; --tenue:#93a4bd; --tenue2:#6b7c96;
+  --radio:13px; --radio-chico:9px;
+  --sombra:0 14px 34px rgba(0,0,0,.42);
+  --fuente:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:
+    radial-gradient(1100px 620px at 12% -8%, rgba(34,211,238,.10), transparent 60%),
+    radial-gradient(900px 520px at 92% 8%, rgba(251,191,36,.07), transparent 62%),
+    linear-gradient(180deg,var(--fondo2) 0%,var(--fondo) 58%);
+  color:var(--texto); overflow:hidden;
+  display:flex; flex-direction:column;
+  font-family:var(--fuente); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+:focus-visible{outline:2px solid var(--cian); outline-offset:2px; border-radius:6px}
+::selection{background:rgba(34,211,238,.32)}
+
+/* ---------- encabezado ---------- */
+header{
+  display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  padding:10px 16px; background:rgba(6,11,24,.82); backdrop-filter:blur(9px);
+  border-bottom:1px solid var(--borde); z-index:20;
+}
+.marca-lab{display:flex; align-items:center; gap:11px; min-width:0}
+.logo{
+  width:36px; height:36px; flex:0 0 36px; display:grid; place-items:center;
+  border-radius:11px; font-family:'Cambria Math','Times New Roman',serif; font-size:19px; font-style:italic;
+  background:linear-gradient(140deg,rgba(34,211,238,.22),rgba(251,191,36,.18));
+  border:1px solid var(--borde-fuerte); color:#eafcff;
+}
+h1{
+  font-size:.97rem; font-weight:700; letter-spacing:-.01em; line-height:1.25;
+  background:linear-gradient(96deg,#7ff0ff,#fbbf24); -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.sub-lab{font-size:.7rem; color:var(--tenue2); letter-spacing:.05em; text-transform:uppercase}
+.formula{
+  font-family:'Cambria Math','Latin Modern Math','Times New Roman',serif; font-size:.95rem;
+  color:#ffe6ad; background:rgba(251,191,36,.10); border:1px solid rgba(251,191,36,.28);
+  padding:5px 11px; border-radius:999px; white-space:nowrap;
+}
+.chips{display:flex; gap:7px; flex-wrap:wrap; align-items:center}
+.chip{
+  display:flex; flex-direction:column; gap:1px; padding:5px 11px; min-width:74px;
+  background:var(--panel2); border:1px solid var(--borde); border-radius:var(--radio-chico);
+}
+.chip span{font-size:.63rem; text-transform:uppercase; letter-spacing:.07em; color:var(--tenue2)}
+.chip b{font-family:var(--mono); font-size:.83rem; color:#bff4ff; font-weight:600}
+.chip.destaca{border-color:rgba(52,211,153,.4)}
+.chip.destaca b{color:var(--verde)}
+.chip.alerta{border-color:rgba(248,113,113,.4)}
+.chip.alerta b{color:var(--rojo)}
+
+/* ---------- estructura ---------- */
+.obra{display:flex; flex:1; overflow:hidden; min-height:0}
+.vistas{flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; position:relative}
+.vista{position:relative; overflow:hidden; background:#04070f}
+.vista::after{content:''; position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.5) 100%)}
+#cvFen,.vista:first-child{flex:1.08}
+#cvGraf{flex:1}
+.vistas .vista + .vista{border-top:1px solid var(--borde)}
+canvas{display:block; width:100%; height:100%}
+.lienzo{flex:1; position:relative; overflow:hidden; background:#04070f}
+
+/* ---------- panel lateral ---------- */
+aside{
+  width:372px; flex:0 0 372px; background:var(--panel); border-left:1px solid var(--borde);
+  padding:12px; overflow-y:auto; overscroll-behavior:contain;
+  display:flex; flex-direction:column; gap:10px; z-index:15;
+  transition:flex-basis .22s ease, width .22s ease, padding .22s ease, opacity .18s ease;
+  scrollbar-width:thin; scrollbar-color:rgba(120,160,220,.35) transparent;
+}
+aside::-webkit-scrollbar{width:9px}
+aside::-webkit-scrollbar-thumb{background:rgba(120,160,220,.32); border-radius:99px;
+  border:2px solid transparent; background-clip:content-box}
+aside::-webkit-scrollbar-thumb:hover{background:rgba(34,211,238,.5); background-clip:content-box}
+aside.plegado{flex-basis:0; width:0; padding:0; opacity:0; overflow:hidden; border-left:0}
+
+.plegar{
+  position:absolute; top:10px; right:10px; z-index:12; width:34px; height:34px; min-width:0;
+  display:grid; place-items:center; font-size:1rem; padding:0;
+  background:rgba(6,11,24,.72); border:1px solid var(--borde); color:var(--tenue);
+  border-radius:10px; backdrop-filter:blur(6px);
+}
+.plegar:hover{color:var(--texto); border-color:var(--borde-fuerte)}
+
+/* ---------- tarjetas ---------- */
+.tarjeta{
+  background:linear-gradient(180deg,rgba(22,32,56,.62),rgba(13,20,38,.62));
+  border:1px solid var(--borde); border-radius:var(--radio); padding:11px 12px 12px;
+  display:flex; flex-direction:column; gap:8px; position:relative;
+}
+.tarjeta::before{
+  content:''; position:absolute; inset:0 0 auto; height:1px; border-radius:var(--radio) var(--radio) 0 0;
+  background:linear-gradient(90deg,transparent,rgba(34,211,238,.35),transparent);
+}
+.tarjeta h2{
+  font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:#7fe4f7;
+  display:flex; align-items:center; gap:7px; padding-right:18px;
+}
+.tarjeta h2::before{content:''; width:3px; height:12px; border-radius:2px; background:var(--cian); flex:0 0 3px}
+.ayuda{
+  margin-left:auto; width:17px; height:17px; min-width:17px; flex:0 0 17px; padding:0; font-size:.62rem;
+  display:grid; place-items:center; border-radius:50%; position:relative;
+  background:rgba(120,160,220,.14); border:1px solid var(--borde); color:var(--tenue);
+}
+.ayuda:hover{background:rgba(34,211,238,.22); color:var(--texto)}
+.ayuda::after{
+  content:attr(data-ayuda); position:absolute; right:0; top:calc(100% + 7px); width:250px; z-index:40;
+  background:#0c1426; border:1px solid var(--borde-fuerte); border-radius:10px; padding:9px 10px;
+  font-size:.72rem; font-weight:400; letter-spacing:0; text-transform:none; color:var(--texto);
+  line-height:1.5; box-shadow:var(--sombra); opacity:0; visibility:hidden; transform:translateY(-4px);
+  transition:opacity .15s ease, transform .15s ease, visibility .15s; pointer-events:none; text-align:left;
+}
+.ayuda:hover::after,.ayuda:focus-visible::after{opacity:1; visibility:visible; transform:translateY(0)}
+
+/* ---------- controles ---------- */
+.fila{display:flex; gap:7px; flex-wrap:wrap}
+button{
+  flex:1; min-width:52px; min-height:34px; cursor:pointer; font-family:inherit;
+  background:rgba(34,211,238,.10); color:var(--texto); font-size:.78rem; font-weight:600;
+  border:1px solid rgba(34,211,238,.30); border-radius:var(--radio-chico);
+  padding:7px 9px; transition:background .15s ease, border-color .15s ease, transform .1s ease;
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+}
+button:hover{background:rgba(34,211,238,.20); border-color:var(--borde-fuerte)}
+button:active{transform:translateY(1px)}
+button.activo{
+  background:linear-gradient(135deg,var(--cian),var(--cian-osc)); color:#03141a;
+  border-color:transparent; box-shadow:0 6px 18px rgba(34,211,238,.25);
+}
+button.oro{background:rgba(251,191,36,.12); border-color:rgba(251,191,36,.38); color:#ffe1a3}
+button.oro:hover{background:rgba(251,191,36,.2)}
+button.oro.activo{background:linear-gradient(135deg,#fcd34d,#f59e0b); color:#231400; box-shadow:0 6px 18px rgba(251,191,36,.22)}
+button.mini{font-size:.72rem; padding:5px 8px; min-height:30px;
+  background:rgba(120,160,220,.10); border-color:var(--borde); color:#cfdcee}
+button.mini:hover{background:rgba(120,160,220,.2); border-color:var(--borde-fuerte)}
+button.mini.activo{background:linear-gradient(135deg,var(--cian),var(--cian-osc)); color:#03141a; border-color:transparent}
+button:disabled{opacity:.45; cursor:not-allowed}
+button.peligro{background:rgba(248,113,113,.12); border-color:rgba(248,113,113,.35); color:#fecaca}
+
+select,input[type=text]{
+  width:100%; background:rgba(9,15,30,.9); color:var(--texto); font-family:inherit; font-size:.82rem;
+  border:1px solid rgba(120,160,220,.24); border-radius:var(--radio-chico); padding:8px 9px;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+select:hover,input[type=text]:hover{border-color:rgba(34,211,238,.35)}
+select:focus,input[type=text]:focus{outline:none; border-color:var(--cian); box-shadow:0 0 0 3px rgba(34,211,238,.14)}
+input[type=text]{font-family:var(--mono); letter-spacing:.01em}
+option{background:#0c1426}
+
+/* deslizadores con pista rellena */
+.deslizador{display:flex; flex-direction:column; gap:3px}
+.etiqueta{display:flex; justify-content:space-between; align-items:baseline; gap:8px;
+  font-size:.76rem; color:var(--tenue)}
+.etiqueta b{
+  font-family:var(--mono); font-size:.78rem; font-weight:600; color:#ffe6ad;
+  background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.22);
+  padding:1px 7px; border-radius:99px; min-width:56px; text-align:right;
+}
+input[type=range]{
+  -webkit-appearance:none; appearance:none; width:100%; height:20px; background:transparent; cursor:pointer;
+}
+input[type=range]::-webkit-slider-runnable-track{
+  height:6px; border-radius:99px;
+  background:linear-gradient(90deg,var(--cian) 0%,var(--cian) var(--p,50%),rgba(120,160,220,.22) var(--p,50%),rgba(120,160,220,.22) 100%);
+}
+input[type=range]::-moz-range-track{height:6px; border-radius:99px; background:rgba(120,160,220,.22)}
+input[type=range]::-moz-range-progress{height:6px; border-radius:99px; background:var(--cian)}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:16px; height:16px; margin-top:-5px; border-radius:50%;
+  background:#eafcff; border:2px solid var(--cian-osc); box-shadow:0 2px 8px rgba(0,0,0,.5);
+  transition:transform .12s ease;
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.14)}
+input[type=range]::-moz-range-thumb{width:14px; height:14px; border-radius:50%;
+  background:#eafcff; border:2px solid var(--cian-osc)}
+
+/* casillas */
+.casillas{display:flex; flex-direction:column; gap:6px; font-size:.78rem}
+.casillas label{display:flex; align-items:center; gap:8px; cursor:pointer; color:#cfdcee}
+.casillas label:hover{color:#fff}
+.casillas input{accent-color:var(--cian); width:15px; height:15px; cursor:pointer}
+
+/* ---------- tablas ---------- */
+table{width:100%; border-collapse:collapse; font-size:.72rem; font-family:var(--mono)}
+th{text-align:left; color:var(--tenue2); font-weight:600; font-size:.66rem; text-transform:uppercase;
+  letter-spacing:.06em; padding:4px 6px; border-bottom:1px solid var(--borde)}
+td{padding:4px 6px; border-bottom:1px solid rgba(120,160,220,.08); color:#d7e3f4}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:rgba(34,211,238,.05)}
+
+/* ---------- textos auxiliares ---------- */
+.nota{font-size:.72rem; color:var(--tenue); line-height:1.55}
+.nota b{color:#dbe7f7}
+.nota code{font-family:var(--mono); font-size:.94em; color:#ffe6ad;
+  background:rgba(251,191,36,.10); padding:1px 5px; border-radius:5px}
+.error{color:var(--rojo); font-size:.74rem; min-height:1.1em}
+.ok{color:var(--verde)} .mal{color:var(--rojo)}
+.pista{
+  position:absolute; left:12px; bottom:12px; max-width:64%; z-index:9;
+  background:rgba(6,11,24,.78); border:1px solid var(--borde); border-left:3px solid var(--cian);
+  border-radius:10px; padding:8px 12px; font-size:.76rem; color:var(--tenue); backdrop-filter:blur(7px);
+}
+
+/* ---------- medidores de comparación ---------- */
+.medidor{display:flex; flex-direction:column; gap:5px; margin-top:2px}
+.fila-medidor{display:flex; align-items:center; gap:8px; font-size:.7rem; color:var(--tenue)}
+.fila-medidor > span{width:74px; flex:0 0 74px}
+.barra{flex:1; height:9px; border-radius:99px; background:rgba(120,160,220,.14); overflow:hidden}
+.barra i{display:block; height:100%; width:0%; border-radius:99px; transition:width .25s ease}
+.barra.fen i{background:linear-gradient(90deg,#fcd34d,#f59e0b)}
+.barra.mod i{background:linear-gradient(90deg,#67e8f9,#0891b2)}
+.fila-medidor b{font-family:var(--mono); font-size:.7rem; color:#dbe7f7; min-width:52px; text-align:right}
+
+/* ---------- insignias ---------- */
+.insignia{display:inline-flex; align-items:center; gap:5px; font-size:.68rem; font-weight:600;
+  padding:2px 9px; border-radius:99px; border:1px solid var(--borde); color:var(--tenue)}
+.insignia.ok{color:var(--verde); border-color:rgba(52,211,153,.4); background:rgba(52,211,153,.08)}
+.insignia.mal{color:var(--rojo); border-color:rgba(248,113,113,.4); background:rgba(248,113,113,.08)}
+.insignia.info{color:#7fe4f7; border-color:rgba(34,211,238,.35); background:rgba(34,211,238,.08)}
+
+/* ---------- avisos emergentes ---------- */
+.avisos{position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:60;
+  display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none}
+.aviso{
+  background:rgba(9,15,30,.96); border:1px solid var(--borde-fuerte); border-left:3px solid var(--cian);
+  border-radius:10px; padding:9px 15px; font-size:.8rem; color:var(--texto);
+  box-shadow:var(--sombra); animation:entra .22s ease; max-width:88vw;
+}
+.aviso.ok{border-left-color:var(--verde)} .aviso.mal{border-left-color:var(--rojo)}
+.aviso.oro{border-left-color:var(--oro)}
+@keyframes entra{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+
+/* ---------- bienvenida ---------- */
+.bienvenida{position:fixed; inset:0; z-index:80; background:rgba(3,6,14,.82); backdrop-filter:blur(5px);
+  display:grid; place-items:center; padding:20px}
+.bienvenida.oculto{display:none}
+.bienvenida .caja{width:min(680px,94vw); background:linear-gradient(180deg,#0f1830,#0a1122);
+  border:1px solid var(--borde-fuerte); border-radius:18px; padding:26px 28px; box-shadow:var(--sombra)}
+.bienvenida h3{font-size:1.22rem; margin-bottom:6px;
+  background:linear-gradient(96deg,#7ff0ff,#fbbf24); -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent}
+.bienvenida p{font-size:.86rem; color:var(--tenue); margin-bottom:14px}
+.pasos{display:grid; gap:11px; margin:16px 0 20px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.paso{background:rgba(34,211,238,.06); border:1px solid var(--borde); border-radius:12px; padding:12px}
+.paso b{display:block; font-size:.8rem; color:#bff4ff; margin-bottom:3px}
+.paso span{font-size:.76rem; color:var(--tenue); line-height:1.5}
+.bienvenida .fila{margin-top:4px}
+.atajos{font-family:var(--mono); font-size:.7rem; color:var(--tenue2); margin-top:12px; text-align:center}
+
+/* ---------- fórmulas ---------- */
+.tex{font-family:'Cambria Math','Latin Modern Math','STIX Two Math','Times New Roman',serif;
+     font-size:1.06em; line-height:1.2; white-space:nowrap; color:#f2f7ff}
+.tex .mr{font-style:normal}
+.tex .mfrac{display:inline-flex; flex-direction:column; vertical-align:-0.58em; text-align:center;
+            margin:0 .18em; font-size:.92em}
+.tex .mfrac .mnum{border-bottom:1.2px solid currentColor; padding:0 .22em}
+.tex .mfrac .mden{padding:0 .22em}
+.tex .msqrt .mrad{border-top:1.2px solid currentColor; padding:0 .16em; margin-left:.05em}
+.tex .msqrt::before{content:'\221A'; font-style:normal}
+.tex sup{font-size:.68em; vertical-align:super; line-height:0}
+.tex sub{font-size:.68em; vertical-align:sub; line-height:0}
+.tex.bloque{display:block; text-align:center; white-space:normal; margin:9px 0; font-size:1.16em;
+  color:#f6fbff; background:rgba(34,211,238,.05); border:1px dashed rgba(120,160,220,.22);
+  border-radius:8px; padding:6px 10px}
+
+/* ---------- adaptación a pantallas ---------- */
+@media (max-width:1100px){ aside{width:330px; flex-basis:330px} }
+@media (max-width:900px){
+  body{overflow:auto}
+  .obra{flex-direction:column}
+  .vistas{min-height:56vh}
+  aside{width:100%; flex:0 0 auto; border-left:0; border-top:1px solid var(--borde); max-height:none}
+  aside.plegado{display:none}
+  header{padding:9px 12px}
+  .chips{width:100%}
+  .chip{flex:1}
+  .pista{max-width:88%; font-size:.72rem}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001s !important; transition-duration:.001s !important}
+}
 </style>
 </head>
 <body>
 <header>
-  <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">
-    <h1>Laboratorio ODE 02 — Fenómeno frente al modelo</h1>
+  <div class="marca-lab">
+    <span class="logo">ẍ</span>
+    <div>
+      <h1>Resorte, amortiguador y circuito RLC frente al modelo</h1>
+      <span class="sub-lab">Ecuaciones Diferenciales · O2017216 · Laboratorio 02</span>
+    </div>
     <span class="formula" data-tex="m\,x'' + c\,x' + k\,x = F_0\cos(\omega t)"></span>
   </div>
-  <div class="stats">
-    <span>&omega;&#8320; = <b id="eW0">—</b></span>
-    <span>&zeta; = <b id="eZeta">—</b></span>
-    <span>R&eacute;gimen: <b id="eRegimen">—</b></span>
-    <span>Amplitud medida: <b id="eAmed">—</b></span>
-    <span>Amplitud del modelo: <b id="eAmod">—</b></span>
-    <span>Discrepancia: <b id="eDisc">—</b></span>
+  <div class="chips">
+    <div class="chip"><span>&omega;&#8320;</span><b id="eW0">—</b></div>
+    <div class="chip"><span>&zeta;</span><b id="eZeta">—</b></div>
+    <div class="chip"><span>Régimen</span><b id="eRegimen">—</b></div>
+    <div class="chip"><span>Amplitud medida</span><b id="eAmed">—</b></div>
+    <div class="chip"><span>Amplitud del modelo</span><b id="eAmod">—</b></div>
+    <div class="chip destaca"><span>Discrepancia</span><b id="eDisc">—</b></div>
+    <button class="mini" id="btnGuia" style="flex:0 0 auto">Guía</button>
   </div>
 </header>
 
 <div class="obra">
   <div class="vistas">
+    <button class="plegar" id="btnPlegar" title="Mostrar u ocultar el panel (tecla P)">›</button>
     <div class="vista" id="cvFen"><canvas id="cFen"></canvas></div>
     <div class="vista" id="cvGraf"><canvas id="cGraf"></canvas></div>
   </div>
 
   <aside>
     <div class="tarjeta">
-      <h2>Fenómeno</h2>
+      <h2>Fenómeno<button class="ayuda" data-ayuda="Cambie de fenómeno: la ecuación es la misma, solo cambian las etiquetas físicas. Active «modo examen» en la tarjeta de efectos para practicar el diagnóstico.">?</button></h2>
       <select id="selFenomeno">
         <option value="resorte">Resorte–masa–amortiguador</option>
         <option value="rlc">Circuito RLC serie con fuente alterna</option>
@@ -109,11 +345,12 @@
       <div class="fila">
         <button class="mini oro" data-pre="res">Resonancia</button>
         <button class="mini" id="btnReiniciar">Reiniciar</button>
+        <button class="mini" id="btnPausa">⏸ Pausar</button>
       </div>
     </div>
 
     <div class="tarjeta">
-      <h2>Parámetros que puede manipular</h2>
+      <h2>Parámetros que puede manipular<button class="ayuda" data-ayuda="Cada control mueve el fenómeno y el modelo a la vez. Observe cuándo las dos curvas se separan: ahí está la información.">?</button></h2>
       <div class="deslizador">
         <div class="etiqueta"><span id="lb1">masa m</span><b id="e1">1.00</b></div>
         <input type="range" id="r1" min="0.2" max="5" step="0.05" value="1" />
@@ -145,7 +382,7 @@
     </div>
 
     <div class="tarjeta">
-      <h2>Modelo y clasificación</h2>
+      <h2>Modelo y clasificación<button class="ayuda" data-ayuda="ω₀ y ζ resumen el sistema: ζ decide el régimen (subamortiguado, crítico o sobreamortiguado). λ y τ hacen lo propio en los fenómenos de primer orden.">?</button></h2>
       <table>
         <tbody id="tablaModelo"></tbody>
       </table>
@@ -153,7 +390,11 @@
     </div>
 
     <div class="tarjeta">
-      <h2>Verificación: modelo contra fenómeno</h2>
+      <h2>Verificación: modelo contra fenómeno<button class="ayuda" data-ayuda="El fenómeno se integra con sus efectos reales y el modelo con la ecuación ideal, en paralelo y con las mismas condiciones. La discrepancia mide exactamente lo que el modelo no explica.">?</button></h2>
+      <div class="medidor">
+        <div class="fila-medidor"><span>Fenómeno</span><div class="barra fen"><i id="barraFen"></i></div><b id="valorFen">—</b></div>
+        <div class="fila-medidor"><span>Modelo</span><div class="barra mod"><i id="barraMod"></i></div><b id="valorMod">—</b></div>
+      </div>
       <table>
         <tbody id="tablaVerif"></tbody>
       </table>
@@ -161,7 +402,7 @@
     </div>
 
     <div class="tarjeta">
-      <h2>Efecto no modelado</h2>
+      <h2>Efecto no modelado<button class="ayuda" data-ayuda="Elija un efecto, o pulse «modo examen» para que se elija al azar y quede oculto. Después diagnostique mirando la discrepancia y el ajuste de los datos.">?</button></h2>
       <select id="selEfecto">
         <option value="ninguno">Ninguno (el modelo lineal es exacto)</option>
         <option value="seco">Rozamiento seco (Coulomb)</option>
@@ -185,7 +426,7 @@
     </div>
 
     <div class="tarjeta">
-      <h2>Gráficas manipulables</h2>
+      <h2>Gráficas manipulables<button class="ayuda" data-ayuda="Rueda del ratón para acercar, arrastrar para desplazarse en el tiempo y el cursor para leer valores. Cada botón muestra otra vista del mismo experimento.">?</button></h2>
       <div class="casillas">
         <label><input type="checkbox" id="gFen" checked /> Fenómeno (dorado)</label>
         <label><input type="checkbox" id="gMod" checked /> Modelo lineal (cian)</label>
@@ -213,7 +454,7 @@
     </div>
 
     <div class="tarjeta">
-      <h2>Datos para Excel</h2>
+      <h2>Datos para Excel<button class="ayuda" data-ayuda="Descargue la corrida completa en .xlsx (con varias hojas) o en CSV, y analícela fuera de la página: ajustes, gráficas y conclusiones.">?</button></h2>
       <div class="fila">
         <button class="mini activo" id="btnXLSX">Descargar Excel (.xlsx)</button>
         <button class="mini" id="btnCSV">Descargar CSV</button>
@@ -237,7 +478,7 @@
     </div>
 
     <div class="tarjeta">
-      <h2>Nota matemática</h2>
+      <h2>Nota matemática<button class="ayuda" data-ayuda="Resumen de las fórmulas que usa el laboratorio, compuestas en notación matemática real.">?</button></h2>
       <div class="nota">
         Con <span data-tex="\omega_0 = \sqrt{k/m}"></span> y
         <span data-tex="\zeta = \frac{c}{2\sqrt{km}}"></span>, el modelo se escribe
@@ -620,6 +861,7 @@ const eAmed = document.getElementById('eAmed'), eAmod = document.getElementById(
 
 let sim = { t: 0, fen: [P.x0, P.v0], mod: [P.x0, P.v0], hist: [], barrido: [], diag: null };
 let velocidad = 1;
+let pausado = false;
 let diagElegido = null;
 
 function ajustar(cv, ctx) {
@@ -630,8 +872,7 @@ function ajustar(cv, ctx) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 function ajustarTodo() { ajustar(cFen, ctxFen); ajustar(cGraf, ctxGraf); }
-window.addEventListener('resize', () => { renderizarTeX();
-ajustarTodo(); dibujar(); });
+window.addEventListener('resize', () => { ajustarTodo(); dibujar(); });
 
 function reiniciarSimulacion() {
   sim.t = 0;
@@ -1135,7 +1376,13 @@ function actualizarPanel() {
     const disc = Math.abs(med.am - med.amod) / Math.max(1e-9, med.amod) * 100;
     eAmed.textContent = med.am.toFixed(3);
     eAmod.textContent = med.amod.toFixed(3);
-    eDisc.textContent = disc.toFixed(1) + '%';
+    document.getElementById('valorMod').textContent = med.amod.toFixed(3);
+    const tope = Math.max(1e-9, med.am, med.amod);
+    document.getElementById('barraFen').style.width = (med.am / tope * 100).toFixed(1) + '%';
+    document.getElementById('barraMod').style.width = (med.amod / tope * 100).toFixed(1) + '%';
+    const chipDisc = document.getElementById('eDisc').closest('.chip');
+    chipDisc.classList.toggle('alerta', disc > 10);
+    chipDisc.classList.toggle('destaca', disc <= 2);
     tablaVerif.innerHTML =
       `<tr><td>amplitud medida (fenómeno)</td><td>${med.am.toFixed(4)}</td></tr>` +
       `<tr><td>amplitud del modelo</td><td>${med.amod.toFixed(4)}</td></tr>` +
@@ -1155,8 +1402,10 @@ function actualizarPanel() {
 }
 
 function bucle() {
-  const sub = Math.max(1, Math.round(velocidad * 4));
-  for (let k = 0; k < sub; k++) avanzar(1 / 240);
+  if (!pausado) {
+    const sub = Math.max(1, Math.round(velocidad * 4));
+    for (let k = 0; k < sub; k++) avanzar(1 / 240);
+  }
   dibujar();
   actualizarPanel();
   requestAnimationFrame(bucle);
@@ -1565,12 +1814,104 @@ document.getElementById('btnPNGfen').addEventListener('click', () => {
   exportarPNG(cFen, ctxFen, `Lab ODE 02 · fenómeno · ${P.fenomeno === 'resorte' ? 'resorte' : 'RLC'}`);
 });
 
+/* ---------- interfaz: avisos, panel plegable, pausa, rangos, guía y atajos ---------- */
+function avisar(texto, tipo) {
+  const caja = document.getElementById('avisos');
+  const el = document.createElement('div');
+  el.className = 'aviso' + (tipo ? ' ' + tipo : '');
+  el.innerHTML = texto;
+  caja.appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity .35s'; el.style.opacity = '0'; }, 2700);
+  setTimeout(() => el.remove(), 3200);
+}
+function pintarRangos() {
+  document.querySelectorAll('input[type=range]').forEach((r) => {
+    const min = parseFloat(r.min || '0'), max = parseFloat(r.max || '100');
+    const p = max > min ? ((parseFloat(r.value) - min) / (max - min)) * 100 : 0;
+    r.style.setProperty('--p', p.toFixed(1) + '%');
+  });
+}
+document.querySelectorAll('input[type=range]').forEach((r) => r.addEventListener('input', pintarRangos));
+
+const panelLateral = document.querySelector('aside');
+const btnPlegar = document.getElementById('btnPlegar');
+btnPlegar.addEventListener('click', () => {
+  const plegado = panelLateral.classList.toggle('plegado');
+  btnPlegar.textContent = plegado ? '‹' : '›';
+  btnPlegar.title = plegado ? 'Mostrar el panel (P)' : 'Ocultar el panel (P)';
+  setTimeout(() => { ajustarTodo(); dibujar(); }, 240);
+});
+
+const btnPausa = document.getElementById('btnPausa');
+btnPausa.addEventListener('click', () => {
+  pausado = !pausado;
+  btnPausa.textContent = pausado ? '▶ Seguir' : '⏸ Pausar';
+  btnPausa.classList.toggle('oro', pausado);
+  avisar(pausado ? 'Simulación en pausa' : 'Simulación en marcha', pausado ? 'oro' : 'ok');
+});
+
+function abrirGuia(abrir) {
+  document.getElementById('bienvenida').classList.toggle('oculto', !abrir);
+}
+document.getElementById('btnGuia').addEventListener('click', () => abrirGuia(true));
+document.getElementById('btnEmpezar').addEventListener('click', () => {
+  try { localStorage.setItem('odelab02-guia', 'vista'); } catch (e) {}
+  abrirGuia(false);
+  avisar('Pruebe «Subamortiguado», «Crítico» y «Sobreamortiguado» y compare la discrepancia', 'ok');
+});
+document.getElementById('btnNoVer').addEventListener('click', () => {
+  try { localStorage.setItem('odelab02-guia', 'vista'); } catch (e) {}
+  abrirGuia(false);
+});
+window.addEventListener('keydown', (e) => {
+  if (e.target.matches('input, select, textarea')) return;
+  if (e.key === 'Escape') abrirGuia(false);
+  else if (e.key === ' ') { e.preventDefault(); btnPausa.click(); }
+  else if (e.key === 'p' || e.key === 'P') btnPlegar.click();
+  else if (e.key === 'r' || e.key === 'R') btnReiniciar.click();
+  else if (e.key === 'g' || e.key === 'G') document.getElementById('btnPNGgraf').click();
+});
+window.addEventListener('resize', pintarRangos);
+
+renderizarTeX();
+pintarRangos();
 ajustarTodo();
 sincronizarEtiquetas();
 leerControles();
 reiniciarSimulacion();
 recalcular();
 bucle();
+try {
+  if (localStorage.getItem('odelab02-guia') !== 'vista') abrirGuia(true);
+} catch (e) { abrirGuia(true); }
 </script>
+<div class="avisos" id="avisos"></div>
+
+<div class="bienvenida oculto" id="bienvenida">
+  <div class="caja">
+    <h3>Laboratorio 02 · Resorte, amortiguador y circuito RLC</h3>
+    <p>
+      Un mismo modelo de segundo orden gobierna dos fenómenos que parecen distintos. Aquí los ve
+      funcionar a la vez, mueve sus parámetros y comprueba si la ecuación ideal alcanza para
+      explicar lo que ocurre de verdad.
+    </p>
+    <div class="pasos">
+      <div class="paso"><b>1 · Manipule el fenómeno</b>
+        <span>Masa, amortiguamiento, rigidez, fuerza y frecuencia. Observe el resorte y el circuito
+        mientras cambian.</span></div>
+      <div class="paso"><b>2 · Contraste con el modelo</b>
+        <span>La curva dorada es el fenómeno; la cian, la ecuación ideal. La discrepancia de arriba
+        mide la diferencia.</span></div>
+      <div class="paso"><b>3 · Diagnostique</b>
+        <span>Active un efecto oculto o el modo examen y deduzca, con las gráficas, qué supuesto del
+        modelo falla.</span></div>
+    </div>
+    <div class="fila">
+      <button id="btnEmpezar" class="activo">Empezar el laboratorio</button>
+      <button id="btnNoVer" class="mini" style="flex:0 0 auto">No volver a mostrarla</button>
+    </div>
+    <div class="atajos">Atajos: espacio = pausar · R = reiniciar · P = panel · G = guardar gráficas · Esc = cerrar</div>
+  </div>
+</div>
 </body>
 </html>
