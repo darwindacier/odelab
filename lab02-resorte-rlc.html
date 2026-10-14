@@ -700,7 +700,8 @@ function clasificar(m, c, k) {
   const w0 = Math.sqrt(k / m);
   const zeta = c / (2 * Math.sqrt(k * m));
   const delta = c * c - 4 * m * k;
-  const regimen = zeta < 1 - 1e-9 ? 'subamortiguado' : (Math.abs(zeta - 1) <= 1e-9 ? 'crítico' : 'sobreamortiguado');
+  const tol = 2e-3;   // por debajo de la resolución de los deslizadores
+  const regimen = Math.abs(zeta - 1) <= tol ? 'crítico' : (zeta < 1 ? 'subamortiguado' : 'sobreamortiguado');
   return { w0, zeta, delta, regimen };
 }
 
@@ -1144,6 +1145,7 @@ const eW0 = document.getElementById('eW0'), eZeta = document.getElementById('eZe
 const eAmed = document.getElementById('eAmed'), eAmod = document.getElementById('eAmod'), eDisc = document.getElementById('eDisc');
 
 let sim = { t: 0, fen: [P.x0, P.v0], mod: [P.x0, P.v0], hist: [], barrido: [], diag: null };
+const vistaResorte = { amp: 0 };   // amplitud que usa la escala del dibujo, suavizada
 let velocidad = 1;
 let pausado = false;
 let diagElegido = null;
@@ -1163,6 +1165,7 @@ function reiniciarSimulacion() {
   sim.fen = [P.x0, P.v0];
   sim.mod = [P.x0, P.v0];
   sim.hist = [];
+  vistaResorte.amp = 0;
 }
 
 function recalcular() {
@@ -1227,8 +1230,12 @@ function dibujarResorte(W, H) {
   // recorrido en píxeles: el pistón del amortiguador debe quedar dentro del cilindro en todo el recorrido
   const A = Math.max(12, Math.min(150, (yMax - techo - 20) / 4));
   const yEq = yMax - A;
-  let amp = Math.max(0.05, Math.abs(x));
-  for (const h of sim.hist) amp = Math.max(amp, Math.abs(h[1]));
+  let objetivo = Math.max(0.05, Math.abs(x));
+  for (let i = sim.hist.length - 1; i >= 0 && sim.hist[i][0] >= sim.t - 4; i--) {
+    objetivo = Math.max(objetivo, Math.abs(sim.hist[i][1]));
+  }
+  vistaResorte.amp = vistaResorte.amp ? vistaResorte.amp + (objetivo - vistaResorte.amp) * 0.04 : objetivo;
+  const amp = Math.max(vistaResorte.amp, Math.abs(x));
   const escala = A / amp;
   const y = Math.max(yEq - A, Math.min(yMax, yEq + x * escala));
   const cx = W * 0.42, xs = cx - 30, xd = cx + 30;
@@ -1336,7 +1343,9 @@ function dibujarRLC(W, H) {
   ctxFen.strokeStyle = '#ffd166'; ctxFen.stroke();
   ctxFen.fillStyle = 'rgba(255,209,102,.9)';
   ctxFen.font = '11px ui-monospace, monospace';
-  ctxFen.fillText(`${(P.F0 * Math.cos(ang)).toFixed(1)} V`, x0 - 22, cy - 34);
+  ctxFen.textAlign = 'right';
+  ctxFen.fillText(`${(P.F0 * Math.cos(ang)).toFixed(2)} V`, x0 - 34, cy + 4);
+  ctxFen.textAlign = 'left';
 
   // resistencia (zigzag arriba)
   const rIni = x0 + esc * 0.45, rFin = x0 + esc * 1.15;
@@ -1379,11 +1388,14 @@ function dibujarRLC(W, H) {
   ctxFen.fillText(`i = ${i.toFixed(3)} mA`, capCx - 60, y1 + 40);
   ctxFen.fillText(`1/C = ${P.k.toFixed(1)} 1/F`, capCx - 60, y1 + 56);
 
-  // corriente circulando
-  const vel = Math.max(-40, Math.min(40, i * 20));
+  // portadores de carga: su desplazamiento por el circuito es proporcional a q, así i = dq/dt es su velocidad
+  let objetivo = 0.05;
+  for (let k = sim.hist.length - 1; k >= 0 && sim.hist[k][0] >= sim.t - 4; k--) objetivo = Math.max(objetivo, Math.abs(sim.hist[k][1]));
+  vistaResorte.amp = vistaResorte.amp ? vistaResorte.amp + (objetivo - vistaResorte.amp) * 0.04 : objetivo;
+  const desplazamiento = 0.06 * q / Math.max(vistaResorte.amp, Math.abs(q));
   ctxFen.fillStyle = 'rgba(255,209,102,.9)';
   for (let k = 0; k < 14; k++) {
-    const f = ((k / 14) + (sim.t * vel / 60)) % 1;
+    const f = (((k / 14) + desplazamiento) % 1 + 1) % 1;
     let px, py;
     if (f < 0.25) { px = x0; py = y1 - (y1 - y0) * (f / 0.25); }
     else if (f < 0.5) { px = x0 + (x1 - x0) * ((f - 0.25) / 0.25); py = y0; }
@@ -1401,7 +1413,32 @@ function dibujarFenomeno() {
   ctxFen.fillStyle = 'rgba(148,163,184,.85)';
   ctxFen.font = '12px "Segoe UI", Inter, system-ui, sans-serif';
   if (W >= 620) ctxFen.fillText('FENÓMENO (con los efectos reales)', 14, H - 12);
+  const aviso = estadoQuieto();
+  cFen.style.cursor = aviso ? 'pointer' : 'default';
+  if (aviso) {
+    ctxFen.save();
+    ctxFen.font = `600 12.5px ${FUENTE}`;
+    const ancho = ctxFen.measureText(aviso).width + 30, x0 = (W - ancho) / 2, y0 = H - 46;
+    ctxFen.fillStyle = 'rgba(7,11,24,.94)'; ctxFen.strokeStyle = 'rgba(251,191,36,.6)'; ctxFen.lineWidth = 1;
+    ctxFen.beginPath();
+    if (ctxFen.roundRect) ctxFen.roundRect(x0 + 0.5, y0 + 0.5, ancho, 30, 15); else ctxFen.rect(x0 + 0.5, y0 + 0.5, ancho, 30);
+    ctxFen.fill(); ctxFen.stroke();
+    ctxFen.fillStyle = '#fde68a'; ctxFen.textAlign = 'center'; ctxFen.textBaseline = 'middle';
+    ctxFen.fillText(aviso, W / 2, y0 + 15.5);
+    ctxFen.restore();
+  }
 }
+
+/* Texto del aviso cuando el fenómeno está quieto (en pausa o en reposo), o null si se mueve. */
+function estadoQuieto() {
+  if (pausado) return '⏸ En pausa · haga clic aquí o pulse espacio para seguir';
+  const enReposo = P.F0 === 0 && sim.t > 1 && Math.abs(sim.fen[0]) < 2e-3 && Math.abs(sim.fen[1]) < 2e-3;
+  return enReposo ? 'Llegó al equilibrio · haga clic aquí para soltarlo otra vez desde x₀' : null;
+}
+cFen.addEventListener('click', () => {
+  if (pausado) btnPausa.click();
+  else if (estadoQuieto()) document.getElementById('btnReiniciar').click();
+});
 
 /* ---------- panel de gráficas interactivo ---------- */
 const graf = { verFen: true, verMod: true, verVel: false, verDif: false, verPicos: true,
@@ -1521,7 +1558,11 @@ function dibujarGraficas() {
   const titulo = titulos[graf.panel];
 
   if (graf.panel === 'resonancia') {
-    if (!sim.barrido.length) { marcoGrafica(ctxGraf, cd, [0, 1], [0, 1], { titulo }); return; }
+    if (!sim.barrido.length || P.F0 === 0) {
+      marcoGrafica(ctxGraf, cd, [0, 1], [0, 1], { titulo, sinNumerosY: true });
+      mensajeVacio(ctxGraf, cd, 'Con F₀ = 0 no hay excitación: suba F₀ para ver la resonancia');
+      return;
+    }
     const wMax = sim.barrido[sim.barrido.length - 1].w;
     let aMax = 1e-9;
     for (const b of sim.barrido) aMax = Math.max(aMax, b.A);
