@@ -1,13 +1,16 @@
-r"""Comprueba que el sitio del laboratorio sirve las tres páginas."""
+r"""Comprueba que el sitio sirve el portal y los tres laboratorios."""
 import time
 import urllib.request
 
 BASE = "https://darwindacier.github.io/odelab/"
 PAGINAS = {
-    "": ["Laboratorio interactivo", "lab01-campos.html", "lab02-resorte-rlc.html"],
-    "lab01-campos.html": ["Campos de direcciones", "isoclinas(", "ordenEmpirico"],
-    "lab02-resorte-rlc.html": ["Resorte", "diagnosticar", "construirXLSX", "ajusteDecaimiento",
-                               "barridoResonancia", "Retrato de fase"],
+    "": ["class=\"pestanas\"", "lab01-campos.html", "lab02-resorte-rlc.html",
+         "lab03-tanque-newton-rc.html", "postMessage", "Guía del curso"],
+    "lab01-campos.html": ["Campos de direcciones", "ordenEmpirico", "texRender", "data-tex"],
+    "lab02-resorte-rlc.html": ["Resorte", "diagnosticar", "construirXLSX", "texRender",
+                               "ajusteDecaimiento", "addEventListener('message'"],
+    "lab03-tanque-newton-rc.html": ["Tanque de mezclas", "diagnosticar", "estimarTau",
+                                    "construirXLSX", "texRender", "addEventListener('message'"],
 }
 
 for intento in range(1, 13):
