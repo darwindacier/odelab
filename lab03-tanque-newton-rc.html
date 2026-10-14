@@ -1644,11 +1644,19 @@ btnPlegar.addEventListener('click', () => {
 });
 
 const btnPausa = document.getElementById('btnPausa');
+function fijarPausa(v) {
+  pausado = v;
+  btnPausa.textContent = v ? '▶ Seguir' : '⏸ Pausar';
+  btnPausa.classList.toggle('oro', v);
+}
 btnPausa.addEventListener('click', () => {
-  pausado = !pausado;
-  btnPausa.textContent = pausado ? '▶ Seguir' : '⏸ Pausar';
-  btnPausa.classList.toggle('oro', pausado);
+  fijarPausa(!pausado);
   avisar(pausado ? 'Simulación en pausa' : 'Simulación en marcha', pausado ? 'oro' : 'ok');
+});
+/* Si el laboratorio vive dentro del portal, el portal manda pausar al cambiar de pestaña. */
+window.addEventListener('message', (e) => {
+  if (e.data === 'pausar') fijarPausa(true);
+  else if (e.data === 'seguir') fijarPausa(false);
 });
 
 function abrirGuia(abrir) {
@@ -1683,8 +1691,8 @@ reiniciarSimulacion();
 recalcular();
 bucle();
 try {
-  if (localStorage.getItem('odelab03-guia') !== 'vista') abrirGuia(true);
-} catch (e) { abrirGuia(true); }
+  if (localStorage.getItem('odelab03-guia') !== 'vista' && window.self === window.top) abrirGuia(true);
+} catch (e) { if (window.self === window.top) abrirGuia(true); }
 </script>
 <div class="avisos" id="avisos"></div>
 
