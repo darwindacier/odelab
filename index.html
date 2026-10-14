@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Laboratorio de Ecuaciones Diferenciales — fenómeno, modelo y verificación</title>
+<style>
+  :root{ --fondo:#060a17; --panel:rgba(15,23,42,.72); --borde:rgba(0,242,254,.22);
+         --cian:#00f2fe; --oro:#ffd166; --texto:#e2e8f0; --tenue:#94a3b8; --verde:#4ade80; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(circle at 20% 0%,#0b132b 0%,#060a17 55%); color:var(--texto);
+       min-height:100vh; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+       padding:34px 20px 60px; line-height:1.55}
+  .env{max-width:1080px;margin:0 auto}
+  header{margin-bottom:26px}
+  .etiqueta{display:inline-block;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
+            color:var(--cian);border:1px solid var(--borde);border-radius:999px;padding:4px 12px;margin-bottom:14px}
+  h1{font-size:clamp(1.6rem,4vw,2.5rem);font-weight:800;line-height:1.15;
+     background:linear-gradient(95deg,var(--cian),var(--oro));-webkit-background-clip:text;
+     background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
+  .sub{color:var(--tenue);font-size:1rem;max-width:70ch}
+  .rejilla{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));margin:30px 0}
+  .tarjeta{background:var(--panel);border:1px solid rgba(148,163,184,.18);border-radius:14px;padding:18px;
+           display:flex;flex-direction:column;gap:10px;transition:transform .18s ease,border-color .18s ease}
+  .tarjeta:hover{transform:translateY(-3px);border-color:var(--borde)}
+  .tarjeta.pronto{opacity:.62}
+  .num{font-family:ui-monospace,Consolas,monospace;font-size:.74rem;color:var(--oro);letter-spacing:.1em}
+  .tarjeta h2{font-size:1.05rem;font-weight:700}
+  .tarjeta p{font-size:.86rem;color:var(--tenue)}
+  .lista{font-size:.8rem;color:var(--tenue);padding-left:17px}
+  .lista li{margin:2px 0}
+  .pie{margin-top:auto;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  a.boton{display:inline-block;text-decoration:none;font-size:.82rem;font-weight:700;color:#040814;
+          background:linear-gradient(135deg,var(--cian),#0284c7);border-radius:8px;padding:8px 13px}
+  a.boton.oro{background:linear-gradient(135deg,var(--oro),#f59e0b)}
+  .marca{font-size:.72rem;color:var(--tenue);border:1px solid rgba(148,163,184,.25);border-radius:999px;padding:3px 9px}
+  .marca.ok{color:var(--verde);border-color:rgba(74,222,128,.4)}
+  table{width:100%;border-collapse:collapse;font-size:.84rem;margin-top:8px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid rgba(148,163,184,.14)}
+  th{color:var(--cian);font-size:.74rem;text-transform:uppercase;letter-spacing:.07em}
+  h3.seccion{margin:34px 0 6px;font-size:1.1rem}
+  .nota{font-size:.82rem;color:var(--tenue)}
+  code{color:var(--oro);font-family:ui-monospace,Consolas,monospace;font-size:.85em}
+  footer{margin-top:44px;padding-top:18px;border-top:1px solid rgba(148,163,184,.14);
+         font-size:.8rem;color:var(--tenue);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="env">
+  <header>
+    <span class="etiqueta">Ecuaciones Diferenciales · O2017216</span>
+    <h1>Laboratorio interactivo: el fenómeno, el modelo y la verificación</h1>
+    <p class="sub">
+      Cada laboratorio simula un fenómeno físico que el estudiante puede manipular, resuelve el
+      modelo matemático con el mismo estado inicial y excitación, y mide la diferencia entre ambos.
+      Cuando el modelo falla, el propio laboratorio lo detecta con un clasificador numérico y el
+      estudiante debe diagnosticar qué supuesto hay que cambiar. Todos los datos se descargan en
+      Excel para analizarlos fuera de la página.
+    </p>
+  </header>
+
+  <div class="rejilla">
+    <div class="tarjeta">
+      <span class="num">LABORATORIO 01</span>
+      <h2>Campos de direcciones e isóclinas</h2>
+      <p>Escriba cualquier ecuación <code>y' = f(x, y)</code>, vea el campo, las isóclinas y lance
+         curvas solución con un clic.</p>
+      <ul class="lista">
+        <li>Isóclinas calculadas por contorno numérico</li>
+        <li>Euler, Heun y RK4 con el orden empírico medido</li>
+        <li>Error global y defecto de cada método</li>
+        <li>Reto: logre un error menor que el 1 %</li>
+      </ul>
+      <div class="pie">
+        <a class="boton" href="lab01-campos.html">Abrir laboratorio</a>
+        <span class="marca ok">verificado</span>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <span class="num">LABORATORIO 02</span>
+      <h2>Resorte–masa–amortiguador y circuito RLC</h2>
+      <p>El mismo modelo de segundo orden en dos fenómenos: masa con resorte y amortiguador, o
+         circuito RLC serie con fuente alterna.</p>
+      <ul class="lista">
+        <li>Los tres regímenes y la resonancia, en vivo</li>
+        <li>Efectos ocultos: rozamiento seco, resorte no lineal, frenado cuadrático</li>
+        <li>Gráficas manipulables: zoom, desplazamiento, retrato de fase, energía</li>
+        <li>Ajuste del decaimiento que estima ζ desde los datos</li>
+        <li>Exportación a Excel (4 hojas) y CSV</li>
+      </ul>
+      <div class="pie">
+        <a class="boton oro" href="lab02-resorte-rlc.html">Abrir laboratorio</a>
+        <span class="marca ok">verificado</span>
+      </div>
+    </div>
+
+    <div class="tarjeta pronto">
+      <span class="num">LABORATORIO 03</span>
+      <h2>Tanque de mezclas, enfriamiento y circuito RC</h2>
+      <p>Los fenómenos de primer orden: un tanque con entrada y salida, una taza que se enfría y un
+         capacitor que se carga. Mismo diseño: manipular, medir y contrastar.</p>
+      <ul class="lista">
+        <li>Concentración de equilibrio y tiempo característico</li>
+        <li>Ley de enfriamiento de Newton</li>
+        <li>Circuito RC: constante de tiempo</li>
+        <li>Exportación a Excel y retos autoverificables</li>
+      </ul>
+      <div class="pie"><span class="marca">en preparación</span></div>
+    </div>
+
+    <div class="tarjeta pronto">
+      <span class="num">LABORATORIO 04</span>
+      <h2>Sistemas, plano de fase y estabilidad</h2>
+      <p>Dos ecuaciones acopladas: retrato de fase, autovalores y clasificación de equilibrios.</p>
+      <ul class="lista">
+        <li>Depredador–presa y competencia</li>
+        <li>Nodos, sillas y focos según los autovalores</li>
+        <li>Comparación con la solución linealizada</li>
+      </ul>
+      <div class="pie"><span class="marca">en preparación</span></div>
+    </div>
+  </div>
+
+  <h3 class="seccion">La misma ecuación, tres fenómenos</h3>
+  <p class="nota">
+    La analogía entre la mecánica y la electricidad es exacta, y el laboratorio 02 permite verla
+    con el mismo motor de cálculo:
+  </p>
+  <table>
+    <thead><tr><th>Modelo general</th><th>Resorte</th><th>Circuito RLC</th><th>Significado</th></tr></thead>
+    <tbody>
+      <tr><td><code>a y'' + b y' + c y = F(t)</code></td><td>masa <code>m</code></td>
+          <td>inductancia <code>L</code></td><td>inercia: se opone al cambio</td></tr>
+      <tr><td></td><td>amortiguamiento <code>c</code></td><td>resistencia <code>R</code></td>
+          <td>disipa energía</td></tr>
+      <tr><td></td><td>rigidez <code>k</code></td><td><code>1/C</code></td>
+          <td>devuelve al equilibrio</td></tr>
+      <tr><td></td><td>fuerza <code>F₀cos ωt</code></td><td>tensión <code>V₀cos ωt</code></td>
+          <td>excitación externa</td></tr>
+      <tr><td></td><td>posición <code>x</code>, velocidad <code>v</code></td>
+          <td>carga <code>q</code>, corriente <code>i = q'</code></td>
+          <td>variables observables</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="seccion">Cómo se usa en clase</h3>
+  <p class="nota">
+    El estudiante abre el laboratorio, predice qué va a pasar, mueve los parámetros, compara la
+    curva del fenómeno con la del modelo, descarga los datos y ajusta en Excel lo que la teoría
+    predice (por ejemplo, ζ desde el decaimiento). El reto final es de diagnóstico: el laboratorio
+    activa un efecto no modelado —rozamiento seco, resorte que se ablanda o frenado cuadrático— y
+    hay que identificarlo a partir de las gráficas. No requiere instalación ni conexión después de
+    la primera carga: son páginas autónomas que funcionan sin servidor.
+  </p>
+
+  <footer>
+    <span>Dr. Darwin Peña González · Universidad del Magdalena · Licenciatura en Matemáticas</span>
+    <span>Código O2017216 · período 2026-II</span>
+  </footer>
+</div>
+</body>
+</html>
