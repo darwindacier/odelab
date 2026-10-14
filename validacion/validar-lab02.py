@@ -1,4 +1,4 @@
-﻿r"""Valida el laboratorio 02: modelo, clasificador y el archivo .xlsx exportado."""
+r"""Valida el laboratorio 02: modelo, clasificador y el archivo .xlsx exportado."""
 from __future__ import annotations
 
 import re
@@ -35,15 +35,15 @@ const cerca = (a, b, tol) => Math.abs(a - b) <= tol;
 const base = { m: 1, c: 0.5, k: 10, F0: 2, w: 2, x0: 1, v0: 0, efecto: 'ninguno',
                Fc: 0.5, k3rel: -0.35, c2rel: 0.8 };
 
-// 1. ClasificaciÃ³n
+// 1. Clasificación
 check("zeta<1 subamortiguado", clasificar(1, 0.5, 10).regimen === 'subamortiguado');
-check("zeta=1 crÃ­tico", clasificar(1, 2 * Math.sqrt(10), 10).regimen === 'crÃ­tico');
+check("zeta=1 crítico", clasificar(1, 2 * Math.sqrt(10), 10).regimen === 'crítico');
 check("zeta>1 sobreamortiguado", clasificar(1, 8, 10).regimen === 'sobreamortiguado');
 check("omega0 y delta coherentes",
       cerca(clasificar(1, 0.5, 10).w0, Math.sqrt(10), 1e-12) &&
       clasificar(1, 0.5, 10).delta < 0 && clasificar(1, 8, 10).delta > 0);
 
-// 2. Amplitud permanente teorÃ­a vs integraciÃ³n
+// 2. Amplitud permanente teoría vs integración
 let peorAmp = 0;
 for (const w of [1.0, 1.8, 2.6, 3.2]) {
   const Q = Object.assign({}, base, { w: w });
@@ -53,33 +53,33 @@ for (const w of [1.0, 1.8, 2.6, 3.2]) {
   for (let i = Math.floor(pts.length * 0.75); i < pts.length; i++) num = Math.max(num, Math.abs(pts[i][1]));
   peorAmp = Math.max(peorAmp, Math.abs(num - teoria) / teoria);
 }
-check("amplitud teÃ³rica = amplitud integrada (<2%)", peorAmp < 0.02, `peor=${(peorAmp * 100).toFixed(2)}%`);
+check("amplitud teórica = amplitud integrada (<2%)", peorAmp < 0.02, `peor=${(peorAmp * 100).toFixed(2)}%`);
 
 // 3. Resonancia
 const wr = frecuenciaResonancia(base.m, base.c, base.k);
 const barrido = barridoResonancia(Object.assign({}, base, { efecto: 'ninguno' }), 40);
 const pico = barrido.reduce((a, b) => (b.A > a.A ? b : a));
-check("pico numÃ©rico en omega_r (<3%)", Math.abs(pico.w - wr) / wr < 0.03,
+check("pico numérico en omega_r (<3%)", Math.abs(pico.w - wr) / wr < 0.03,
       `pico=${pico.w.toFixed(3)} omega_r=${wr.toFixed(3)}`);
-check("pico vale A_max teÃ³rica (<5%)",
+check("pico vale A_max teórica (<5%)",
       Math.abs(pico.A - amplitudEstacionaria(base.m, base.c, base.k, base.F0, wr).A) /
       amplitudEstacionaria(base.m, base.c, base.k, base.F0, wr).A < 0.05);
 check("con zeta alto no hay pico de resonancia", frecuenciaResonancia(1, 5, 10) === null,
       `zeta=${clasificar(1, 5, 10).zeta.toFixed(3)}`);
 
-// 4. SoluciÃ³n analÃ­tica libre vs RK4
+// 4. Solución analítica libre vs RK4
 let peorLibre = 0;
 for (const [m, c, k] of [[1, 0.5, 10], [1, 2 * Math.sqrt(10), 10], [1, 8, 10]]) {
   const pts = integrarEstado({ m, c, k, F0: 0, w: 0, x0: 1, v0: 0.5 }, 'ninguno', 0, [1, 0.5], 3, 0.001);
   for (const [t, x] of pts) peorLibre = Math.max(peorLibre, Math.abs(x - analiticaLibre(m, c, k, 1, 0.5, t)));
 }
-check("soluciÃ³n analÃ­tica = RK4 (<1e-4)", peorLibre < 1e-4, `peor=${peorLibre.toExponential(2)}`);
+check("solución analítica = RK4 (<1e-4)", peorLibre < 1e-4, `peor=${peorLibre.toExponential(2)}`);
 
-// 5. EnergÃ­a y corriente
+// 5. Energía y corriente
 const libre = integrarEstado({ m: 1, c: 0, k: 10, F0: 0, w: 0, x0: 1, v0: 0 }, 'ninguno', 0, [1, 0], 20, 0.001);
 const E = (x, v) => 0.5 * v * v + 0.5 * 10 * x * x;
 const deriva = libre.reduce((m, p) => Math.max(m, Math.abs(E(p[1], p[2]) - E(1, 0))), 0);
-check("energÃ­a conservada sin amortiguamiento (<1e-6)", deriva < 1e-6);
+check("energía conservada sin amortiguamiento (<1e-6)", deriva < 1e-6);
 const conQ = integrarEstado(Object.assign({}, base, { x0: 0, v0: 0 }), 'ninguno', 0, [0, 0], 60, 0.005);
 let aq = 0, ai = 0;
 for (let i = Math.floor(conQ.length * 0.8); i < conQ.length; i++) {
@@ -87,15 +87,15 @@ for (let i = Math.floor(conQ.length * 0.8); i < conQ.length; i++) {
 }
 check("la corriente i = q' va a omega por la carga (<3%)", Math.abs(ai - base.w * aq) / (base.w * aq) < 0.03);
 
-// 6. Clasificador de efectos (la verificaciÃ³n)
+// 6. Clasificador de efectos (la verificación)
 for (const [efecto, que] of [['ninguno', 'modelo lineal'], ['seco', 'rozamiento seco'],
-                             ['no_lineal', 'resorte no lineal'], ['cuadratica', 'amort. cuadrÃ¡tico']]) {
+                             ['no_lineal', 'resorte no lineal'], ['cuadratica', 'amort. cuadrático']]) {
   const d = diagnosticar(Object.assign({}, base, { efecto: efecto }));
-  check(`diagnostica Â«${que}Â»`, d.efecto === efecto,
-        `dijo Â«${d.efecto}Â» Â· ${d.evidencia.slice(0, 58)}â€¦`);
+  check(`diagnostica «${que}»`, d.efecto === efecto,
+        `dijo «${d.efecto}» · ${d.evidencia.slice(0, 58)}…`);
 }
 
-// 7. ExportaciÃ³n a Excel: se genera el archivo y se revisa
+// 7. Exportación a Excel: se genera el archivo y se revisa
 (async () => {
   const filas = (n, f) => Array.from({ length: n }, (_, i) => f(i));
 const hojas = [
@@ -131,7 +131,7 @@ if r2.returncode != 0:
     print("stderr:", r2.stderr.strip()[:900])
     sys.exit(r2.returncode)
 
-# --- VerificaciÃ³n con openpyxl del archivo realmente exportado ---
+# --- Verificación con openpyxl del archivo realmente exportado ---
 print("\n--- el .xlsx abierto con openpyxl ---")
 from openpyxl import load_workbook  # noqa: E402
 
@@ -147,15 +147,16 @@ revisar("cuatro hojas con los nombres previstos",
         wb.sheetnames == ['Datos', 'Parametros', 'Metricas', 'Resonancia'], str(wb.sheetnames))
 ws = wb['Datos']
 revisar("encabezado de la hoja Datos", ws['A1'].value == 't (s)' and ws['C1'].value == 'x modelo (m)')
-revisar("los nÃºmeros son numÃ©ricos, no texto",
+revisar("los números son numéricos, no texto",
         isinstance(ws['A2'].value, (int, float)) and isinstance(ws['B2'].value, (int, float)),
         f"A2={ws['A2'].value!r} ({type(ws['A2'].value).__name__})")
-revisar("las filas de datos estÃ¡n completas", ws.max_row == 4 and ws.max_column == 4,
-        f"{ws.max_row}Ã—{ws.max_column}")
+revisar("las filas de datos están completas", ws.max_row == 4 and ws.max_column == 4,
+        f"{ws.max_row}×{ws.max_column}")
 wsr = wb['Resonancia']
 revisar("la hoja Resonancia trae el barrido", wsr.max_row == 21, f"{wsr.max_row} filas")
-revisar("celdas vacÃ­as se leen como None", wb['Metricas']['C3'].value is None)
+revisar("celdas vacías se leen como None", wb['Metricas']['C3'].value is None)
 
-print("\nRESULTADO:", "exportaciÃ³n verificada" if ok else "revisar la exportaciÃ³n")
+print("\nRESULTADO:", "exportación verificada" if ok else "revisar la exportación")
 sys.exit(0 if ok else 1)
+
 
