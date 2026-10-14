@@ -56,6 +56,19 @@
   .casillas label{display:flex; align-items:center; gap:7px; cursor:pointer}
   .casillas input{accent-color:var(--cian); width:14px; height:14px}
   .ok{color:var(--verde)} .mal{color:var(--rojo)}
+  /* --- composición de fórmulas tipo LaTeX --- */
+  .tex{font-family:'Cambria Math','Latin Modern Math','STIX Two Math','Times New Roman',serif;
+       font-size:1.05em; line-height:1.18; white-space:nowrap}
+  .tex .mr{font-style:normal}
+  .tex .mfrac{display:inline-flex; flex-direction:column; vertical-align:-0.55em; text-align:center;
+              margin:0 .16em; font-size:.93em}
+  .tex .mfrac .mnum{border-bottom:1px solid currentColor; padding:0 .2em}
+  .tex .mfrac .mden{padding:0 .2em}
+  .tex .msqrt .mrad{border-top:1px solid currentColor; padding:0 .14em; margin-left:.04em}
+  .tex .msqrt::before{content:'\221A'; font-style:normal}
+  .tex sup{font-size:.68em; vertical-align:super; line-height:0}
+  .tex sub{font-size:.68em; vertical-align:sub; line-height:0}
+  .tex.bloque{display:block; text-align:center; white-space:normal; margin:7px 0; font-size:1.14em; color:var(--texto)}
   @media (max-width:900px){ .obra{flex-direction:column} aside{width:100%; height:46%; border-left:none; border-top:1px solid var(--borde)} }
 </style>
 </head>
@@ -63,7 +76,7 @@
 <header>
   <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">
     <h1>Laboratorio ODE 02 — Fenómeno frente al modelo</h1>
-    <span class="formula">m x&Prime; + c x&prime; + k x = F&#8320; cos(&omega;t)</span>
+    <span class="formula" data-tex="m\,x'' + c\,x' + k\,x = F_0\cos(\omega t)"></span>
   </div>
   <div class="stats">
     <span>&omega;&#8320; = <b id="eW0">—</b></span>
@@ -212,12 +225,12 @@
       </div>
       <div class="nota">
         <b>Análisis sugerido con esos datos:</b><br />
-        1. Grafique <code>x</code> frente a <code>t</code> y superponga el modelo.<br />
-        2. Tome los picos sucesivos <code>A_n</code> y grafique <code>ln(A_n)</code> contra el
-        número de ciclo: la pendiente da <code>&minus;&zeta;&omega;&#8320;</code>; compare con
-        <code>c/(2m)</code>.<br />
+        1. Grafique <span data-tex="x"></span> frente a <span data-tex="t"></span> y superponga el modelo.<br />
+        2. Tome los picos sucesivos <span data-tex="A_n"></span> y grafique <span data-tex="\ln(A_n)"></span>
+        contra el número de ciclo: la pendiente da <span data-tex="-\zeta\omega_0"></span>; compare con
+        <span data-tex="\frac{c}{2m}"></span>.<br />
         3. En la hoja <b>Resonancia</b>, ubique el máximo de la columna medida y compárelo con
-        <code>&omega;<sub>r</sub> = &omega;&#8320;&radic;(1&minus;2&zeta;&sup2;)</code>.<br />
+        <span data-tex="\omega_r = \omega_0\sqrt{1-2\zeta^2}"></span>.<br />
         4. Si el máximo medido está corrido o el decaimiento no es exponencial, el modelo lineal
         falla: escriba cuál supuesto habría que cambiar.
       </div>
@@ -226,19 +239,24 @@
     <div class="tarjeta">
       <h2>Nota matemática</h2>
       <div class="nota">
-        Con <code>&omega;&#8320; = &radic;(k/m)</code> y <code>&zeta; = c/(2&radic;(km))</code>, el
-        modelo se escribe <code>x&Prime; + 2&zeta;&omega;&#8320;x&prime; + &omega;&#8320;&sup2;x = (F&#8320;/m)cos(&omega;t)</code>.<br />
-        R&eacute;gimen: <code>&zeta;&lt;1</code> subamortiguado, <code>&zeta;=1</code> cr&iacute;tico,
-        <code>&zeta;&gt;1</code> sobreamortiguado.<br />
-        Amplitud de r&eacute;gimen permanente:
-        <code>A = (F&#8320;/k) / &radic;((1&minus;r&sup2;)&sup2; + (2&zeta;r)&sup2;)</code> con
-        <code>r = &omega;/&omega;&#8320;</code>; el pico est&aacute; en
-        <code>&omega;<sub>r</sub> = &omega;&#8320;&radic;(1&minus;2&zeta;&sup2;)</code> (si
-        <code>&zeta; &lt; 1/&radic;2</code>).<br />
-        <b>Analogía eléctrica:</b> <code>L q&Prime; + R q&prime; + q/C = V&#8320;cos(&omega;t)</code>,
-        es decir <code>L&harr;m</code>, <code>R&harr;c</code>, <code>1/C&harr;k</code>,
-        <code>V&#8320;&harr;F&#8320;</code>, y la corriente <code>i = q&prime;</code> es la
-        velocidad del resorte.<br />
+        Con <span data-tex="\omega_0 = \sqrt{k/m}"></span> y
+        <span data-tex="\zeta = \frac{c}{2\sqrt{km}}"></span>, el modelo se escribe
+        <span data-tex="x'' + 2\zeta\omega_0 x' + \omega_0^2 x = \frac{F_0}{m}\cos(\omega t)" data-bloque></span>
+        R&eacute;gimen: <span data-tex="\zeta &lt; 1"></span> subamortiguado,
+        <span data-tex="\zeta = 1"></span> cr&iacute;tico,
+        <span data-tex="\zeta &gt; 1"></span> sobreamortiguado.<br />
+        Amplitud de r&eacute;gimen permanente con <span data-tex="r = \omega/\omega_0"></span>:
+        <span data-tex="A(r) = \frac{F_0/k}{\sqrt{(1-r^2)^2 + (2\zeta r)^2}}" data-bloque></span>
+        y el m&aacute;ximo est&aacute; en
+        <span data-tex="\omega_r = \omega_0\sqrt{1-2\zeta^2}"></span>
+        (si <span data-tex="\zeta &lt; 1/\sqrt{2}"></span>).<br />
+        <b>Analogía eléctrica:</b>
+        <span data-tex="L\,q'' + R\,q' + \frac{q}{C} = V_0\cos(\omega t)" data-bloque></span>
+        es decir <span data-tex="L \leftrightarrow m"></span>,
+        <span data-tex="R \leftrightarrow c"></span>,
+        <span data-tex="1/C \leftrightarrow k"></span>,
+        <span data-tex="V_0 \leftrightarrow F_0"></span>, y la corriente
+        <span data-tex="i = q'"></span> es la velocidad del resorte.<br />
         <b>Verificación:</b> el panel compara la se&ntilde;al del fen&oacute;meno con la del modelo
         (mismas condiciones y misma excitaci&oacute;n) y mide su diferencia; un clasificador num&eacute;rico
         propone el efecto no modelado a partir del decaimiento libre y del corrimiento del pico de
@@ -249,6 +267,129 @@
 </div>
 
 <script>
+/* ==== TEX:BEGIN ==== */
+/* Composición de fórmulas con notación LaTeX, sin dependencias externas.
+   Admite \frac, \sqrt, ^{}, _{}, letras griegas, funciones y símbolos usuales. */
+const TEX_LETRAS_GRIEGAS = ['alpha','beta','gamma','Gamma','delta','Delta','epsilon','varepsilon',
+  'zeta','eta','theta','Theta','iota','kappa','lambda','mu','nu','xi','Xi','pi','Pi','rho','sigma',
+  'Sigma','tau','upsilon','phi','varphi','Phi','chi','psi','Psi','omega','Omega'];
+const TEX_SIMBOLOS = {
+  alpha:'α', beta:'β', gamma:'γ', Gamma:'Γ', delta:'δ', Delta:'Δ', epsilon:'ε', varepsilon:'ε',
+  zeta:'ζ', eta:'η', theta:'θ', Theta:'Θ', iota:'ι', kappa:'κ', lambda:'λ', mu:'μ', nu:'ν',
+  xi:'ξ', Xi:'Ξ', pi:'π', Pi:'Π', rho:'ρ', sigma:'σ', Sigma:'Σ', tau:'τ', upsilon:'υ',
+  phi:'φ', varphi:'φ', Phi:'Φ', chi:'χ', psi:'ψ', Psi:'Ψ', omega:'ω', Omega:'Ω',
+  infty:'∞', partial:'∂', nabla:'∇', cdot:'·', cdots:'⋯', ldots:'…', dots:'…', times:'×', div:'÷',
+  pm:'±', mp:'∓', approx:'≈', simeq:'≃', neq:'≠', equiv:'≡', leq:'≤', geq:'≥', ll:'≪', gg:'≫',
+  to:'→', mapsto:'↦', Rightarrow:'⇒', Leftrightarrow:'⇔', implies:'⇒', iff:'⇔',
+  int:'∫', iint:'∬', oint:'∮', sum:'∑', prod:'∏', in:'∈', notin:'∉', subset:'⊂', forall:'∀', exists:'∃',
+  ',' :'\u2009', ';':'\u2005', ':' :'\u2005', '!':'', quad:'\u2003', qquad:'\u2003\u2003',
+  left:'', right:'', big:'', Big:'', bigl:'', bigr:'', displaystyle:'', textstyle:'', limits:''
+};
+function texRender(s) {
+  let i = 0;
+  const simbolo = (nombre) => {
+    const v = TEX_SIMBOLOS[nombre];
+    if (TEX_LETRAS_GRIEGAS.indexOf(nombre) >= 0) return v || nombre;   // griegas: en cursiva
+    return `<span class="mr">${v !== undefined ? v : nombre}</span>`;
+  };
+  function grupoCrudo() {
+    if (i < s.length && s[i] === '{') {
+      let nivel = 1, j = i + 1;
+      while (j < s.length && nivel > 0) {
+        if (s[j] === '{') nivel++;
+        else if (s[j] === '}') nivel--;
+        if (nivel === 0) break;
+        j++;
+      }
+      const dentro = s.slice(i + 1, j);
+      i = j + 1;
+      return dentro;
+    }
+    const ch = s[i] || '';
+    i++;
+    return ch;
+  }
+  function grupo() {
+    if (i < s.length && s[i] === '{') {
+      let nivel = 1, j = i + 1;
+      while (j < s.length && nivel > 0) {
+        if (s[j] === '{') nivel++;
+        else if (s[j] === '}') nivel--;
+        if (nivel === 0) break;
+        j++;
+      }
+      const dentro = s.slice(i + 1, j);
+      i = j + 1;
+      return texRender(dentro);
+    }
+    if (i < s.length && s[i] === '\\') {
+      i++;
+      let j = i;
+      while (j < s.length && /[A-Za-z]/.test(s[j])) j++;
+      const nombre = s.slice(i, j);
+      i = j;
+      return simbolo(nombre);
+    }
+    const ch = s[i] || '';
+    i++;
+    if (/[0-9]/.test(ch)) return `<span class="mr">${ch}</span>`;
+    if (ch === '-') return '<span class="mr">−</span>';
+    if (ch === '*') return '<span class="mr">·</span>';
+    return ch;
+  }
+  let salida = '';
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === '^' || ch === '_') {
+      i++;
+      const contenido = grupo();
+      salida += ch === '^' ? `<sup>${contenido}</sup>` : `<sub>${contenido}</sub>`;
+      continue;
+    }
+    if (ch === '}') { i++; continue; }
+    if (ch === '\\') {
+      i++;
+      let nombre;
+      if (i < s.length && /[A-Za-z]/.test(s[i])) {
+        let j = i;
+        while (j < s.length && /[A-Za-z]/.test(s[j])) j++;
+        nombre = s.slice(i, j);
+        i = j;
+      } else {
+        nombre = s[i] || '';      // comandos de un carácter: \, \; \: \! \ 
+        i++;
+      }
+      if (nombre === 'frac' || nombre === 'dfrac' || nombre === 'tfrac') {
+        const num = grupo(), den = grupo();
+        salida += `<span class="mfrac"><span class="mnum">${num}</span><span class="mden">${den}</span></span>`;
+      } else if (nombre === 'sqrt') {
+        salida += `<span class="msqrt"><span class="mrad">${grupo()}</span></span>`;
+      } else if (nombre === 'text' || nombre === 'mathrm' || nombre === 'operatorname') {
+        salida += `<span class="mr">${grupoCrudo().replace(/[<>&]/g, '')}</span>`;
+      } else {
+        salida += simbolo(nombre);
+      }
+      continue;
+    }
+    if (ch === "'") { i++; salida += '<span class="mr">′</span>'; continue; }
+    if (ch === '{') { salida += grupo(); continue; }
+    i++;
+    if (/[0-9]/.test(ch)) salida += `<span class="mr">${ch}</span>`;
+    else if (ch === '-') salida += '<span class="mr">−</span>';
+    else if (ch === '*') salida += '<span class="mr">·</span>';
+    else salida += ch;
+  }
+  return salida;
+}
+function texHTML(src) { return `<span class="tex">${texRender(String(src))}</span>`; }
+function renderizarTeX(raiz) {
+  (raiz || document).querySelectorAll('[data-tex]').forEach((el) => {
+    el.innerHTML = texHTML(el.getAttribute('data-tex'));
+    if (el.hasAttribute('data-bloque')) el.classList.add('bloque');
+  });
+}
+/* ==== TEX:END ==== */
+
 /* ==== MATH:BEGIN ==== */
 const EFECTOS = ['ninguno', 'seco', 'no_lineal', 'cuadratica'];
 
@@ -489,7 +630,8 @@ function ajustar(cv, ctx) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 function ajustarTodo() { ajustar(cFen, ctxFen); ajustar(cGraf, ctxGraf); }
-window.addEventListener('resize', () => { ajustarTodo(); dibujar(); });
+window.addEventListener('resize', () => { renderizarTeX();
+ajustarTodo(); dibujar(); });
 
 function reiniciarSimulacion() {
   sim.t = 0;
@@ -506,15 +648,17 @@ function recalcular() {
   eZeta.textContent = cl.zeta.toFixed(3);
   eRegimen.textContent = cl.regimen;
   tablaModelo.innerHTML =
-    `<tr><td>&omega;&#8320; = &radic;(k/m)</td><td>${cl.w0.toFixed(4)} rad/s</td></tr>` +
-    `<tr><td>&zeta; = c/(2&radic;(km))</td><td>${cl.zeta.toFixed(4)}</td></tr>` +
-    `<tr><td>&Delta; = c&sup2; &minus; 4mk</td><td>${cl.delta.toFixed(3)}</td></tr>` +
-    `<tr><td>amplitud A(&omega;) del modelo</td><td>${Number.isFinite(amp.A) ? amp.A.toFixed(4) : '∞'}</td></tr>` +
-    `<tr><td>desfase &phi;</td><td>${amp.fase.toFixed(3)} rad</td></tr>` +
-    `<tr><td>&omega;<sub>r</sub> de resonancia</td><td>${wr === null ? 'no hay pico' : wr.toFixed(4) + ' rad/s'}</td></tr>`;
+    `<tr><td><span data-tex="\\omega_0 = \\sqrt{k/m}"></span></td><td>${cl.w0.toFixed(4)} rad/s</td></tr>` +
+    `<tr><td><span data-tex="\\zeta = \\dfrac{c}{2\\sqrt{km}}"></span></td><td>${cl.zeta.toFixed(4)}</td></tr>` +
+    `<tr><td><span data-tex="\\Delta = c^2 - 4mk"></span></td><td>${cl.delta.toFixed(3)}</td></tr>` +
+    `<tr><td><span data-tex="A(\\omega)"></span> del modelo</td><td>${Number.isFinite(amp.A) ? amp.A.toFixed(4) : '∞'}</td></tr>` +
+    `<tr><td>desfase <span data-tex="\\phi"></span></td><td>${amp.fase.toFixed(3)} rad</td></tr>` +
+    `<tr><td><span data-tex="\\omega_r"></span> de resonancia</td><td>${wr === null ? 'no hay pico' : wr.toFixed(4) + ' rad/s'}</td></tr>`;
+  renderizarTeX(tablaModelo);
   notaModelo.innerHTML = wr === null
     ? 'Con este amortiguamiento la amplitud no presenta máximo: la respuesta decae con ω.'
-    : `Si excita cerca de &omega; = ${wr.toFixed(3)} rad/s la amplitud crece sin que la fuerza aumente.`;
+    : `Si excita cerca de <span data-tex="\\omega = ${wr.toFixed(3)}"></span> rad/s la amplitud crece sin que la fuerza aumente.`;
+  renderizarTeX(notaModelo);
   sim.barrido = barridoResonancia(P, 60);
   sim.diag = diagnosticar(P);
   veredicto.innerHTML = `<b>Clasificador:</b> ${textoEfecto(sim.diag.efecto)}.<br />` +
