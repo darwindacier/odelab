@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Laboratorio ODE 02 — Resorte y circuito RLC: el fenómeno frente al modelo</title>
+<style>
+  :root{
+    --fondo:#060a17; --panel:rgba(12,19,38,.92); --borde:rgba(0,242,254,.25);
+    --cian:#00f2fe; --oro:#ffd166; --texto:#e2e8f0; --tenue:#94a3b8; --rojo:#f87171; --verde:#4ade80;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--fondo); color:var(--texto); height:100vh; width:100vw; overflow:hidden;
+       display:flex; flex-direction:column; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+  header{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+         padding:9px 16px; background:rgba(8,13,28,.95); border-bottom:1px solid var(--borde); z-index:10}
+  h1{font-size:.98rem; font-weight:700; background:linear-gradient(90deg,var(--cian),var(--oro));
+     -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent}
+  .formula{font-family:'Cambria Math','Times New Roman',serif; font-style:italic; font-size:.88rem;
+           color:var(--oro); background:rgba(255,209,102,.1); border:1px solid rgba(255,209,102,.3);
+           padding:3px 9px; border-radius:6px}
+  .stats{display:flex; gap:13px; font-size:.76rem; color:var(--tenue); flex-wrap:wrap}
+  .stats b{color:var(--cian); font-family:ui-monospace,Consolas,monospace}
+  .obra{display:flex; flex:1; overflow:hidden}
+  .vistas{flex:1; display:flex; flex-direction:column; overflow:hidden}
+  .vista{position:relative; background:radial-gradient(circle at center,#0b132b 0%,#050814 100%); overflow:hidden}
+  #cvFen{flex:1.15}
+  #cvGraf{flex:1; border-top:1px solid rgba(148,163,184,.14)}
+  canvas{display:block; width:100%; height:100%}
+  aside{width:356px; background:var(--panel); border-left:1px solid var(--borde); padding:11px;
+        overflow-y:auto; display:flex; flex-direction:column; gap:9px}
+  .tarjeta{background:rgba(15,23,42,.75); border:1px solid rgba(148,163,184,.16); border-radius:10px;
+           padding:10px 11px; display:flex; flex-direction:column; gap:7px}
+  .tarjeta h2{font-size:.71rem; text-transform:uppercase; letter-spacing:.08em; color:var(--cian)}
+  .fila{display:flex; gap:6px; flex-wrap:wrap}
+  button{flex:1; min-width:48px; background:rgba(0,242,254,.12); color:var(--texto);
+         border:1px solid rgba(0,242,254,.35); padding:6px 8px; border-radius:7px; font-size:.76rem;
+         font-weight:600; cursor:pointer; transition:all .15s ease}
+  button:hover{background:rgba(0,242,254,.25); border-color:var(--cian)}
+  button.activo{background:linear-gradient(135deg,var(--cian),#0284c7); color:#040814; border-color:transparent}
+  button.oro{background:rgba(255,209,102,.14); border-color:rgba(255,209,102,.45); color:var(--oro)}
+  button.oro.activo{background:var(--oro); color:#050814}
+  button.mini{font-size:.69rem; padding:4px 5px; background:rgba(30,41,59,.8); border-color:rgba(148,163,184,.25)}
+  select{width:100%; background:rgba(30,41,59,.9); color:var(--texto); border:1px solid rgba(148,163,184,.3);
+         border-radius:7px; padding:6px; font-size:.8rem}
+  .deslizador{display:flex; flex-direction:column; gap:2px}
+  .etiqueta{display:flex; justify-content:space-between; font-size:.76rem; color:var(--tenue)}
+  .etiqueta b{color:var(--oro); font-family:ui-monospace,Consolas,monospace}
+  input[type=range]{width:100%; accent-color:var(--cian); cursor:pointer}
+  table{width:100%; border-collapse:collapse; font-size:.72rem; font-family:ui-monospace,Consolas,monospace}
+  th{text-align:left; color:var(--tenue); padding:2px 5px; border-bottom:1px solid rgba(148,163,184,.2)}
+  td{padding:2px 5px; border-bottom:1px solid rgba(148,163,184,.08)}
+  .nota{font-size:.71rem; color:var(--tenue); line-height:1.5}
+  .nota code{color:var(--oro); font-family:ui-monospace,Consolas,monospace}
+  .casillas{display:flex; flex-direction:column; gap:5px; font-size:.75rem}
+  .casillas label{display:flex; align-items:center; gap:7px; cursor:pointer}
+  .casillas input{accent-color:var(--cian); width:14px; height:14px}
+  .ok{color:var(--verde)} .mal{color:var(--rojo)}
+  @media (max-width:900px){ .obra{flex-direction:column} aside{width:100%; height:46%; border-left:none; border-top:1px solid var(--borde)} }
+</style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">
+    <h1>Laboratorio ODE 02 — Fenómeno frente al modelo</h1>
+    <span class="formula">m x&Prime; + c x&prime; + k x = F&#8320; cos(&omega;t)</span>
+  </div>
+  <div class="stats">
+    <span>&omega;&#8320; = <b id="eW0">—</b></span>
+    <span>&zeta; = <b id="eZeta">—</b></span>
+    <span>R&eacute;gimen: <b id="eRegimen">—</b></span>
+    <span>Amplitud medida: <b id="eAmed">—</b></span>
+    <span>Amplitud del modelo: <b id="eAmod">—</b></span>
+    <span>Discrepancia: <b id="eDisc">—</b></span>
+  </div>
+</header>
+
+<div class="obra">
+  <div class="vistas">
+    <div class="vista" id="cvFen"><canvas id="cFen"></canvas></div>
+    <div class="vista" id="cvGraf"><canvas id="cGraf"></canvas></div>
+  </div>
+
+  <aside>
+    <div class="tarjeta">
+      <h2>Fenómeno</h2>
+      <select id="selFenomeno">
+        <option value="resorte">Resorte–masa–amortiguador</option>
+        <option value="rlc">Circuito RLC serie con fuente alterna</option>
+      </select>
+      <div class="fila">
+        <button class="mini" data-pre="sub">Subamortiguado</button>
+        <button class="mini" data-pre="crit">Cr&iacute;tico</button>
+        <button class="mini" data-pre="sobre">Sobreamortiguado</button>
+      </div>
+      <div class="fila">
+        <button class="mini oro" data-pre="res">Resonancia</button>
+        <button class="mini" id="btnReiniciar">Reiniciar</button>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Parámetros que puede manipular</h2>
+      <div class="deslizador">
+        <div class="etiqueta"><span id="lb1">masa m</span><b id="e1">1.00</b></div>
+        <input type="range" id="r1" min="0.2" max="5" step="0.05" value="1" />
+      </div>
+      <div class="deslizador">
+        <div class="etiqueta"><span id="lb2">amortiguamiento c</span><b id="e2">0.50</b></div>
+        <input type="range" id="r2" min="0" max="8" step="0.02" value="0.5" />
+      </div>
+      <div class="deslizador">
+        <div class="etiqueta"><span id="lb3">rigidez k</span><b id="e3">10.0</b></div>
+        <input type="range" id="r3" min="1" max="40" step="0.1" value="10" />
+      </div>
+      <div class="deslizador">
+        <div class="etiqueta"><span id="lb4">fuerza F&#8320;</span><b id="e4">2.00</b></div>
+        <input type="range" id="r4" min="0" max="10" step="0.05" value="2" />
+      </div>
+      <div class="deslizador">
+        <div class="etiqueta"><span>frecuencia de la excitación &omega;</span><b id="e5">2.00</b></div>
+        <input type="range" id="r5" min="0" max="8" step="0.02" value="2" />
+      </div>
+      <div class="deslizador">
+        <div class="etiqueta"><span id="lb6">posición inicial x&#8320;</span><b id="e6">1.00</b></div>
+        <input type="range" id="r6" min="-2" max="2" step="0.02" value="1" />
+      </div>
+      <div class="deslizador">
+        <div class="etiqueta"><span id="lb7">velocidad inicial v&#8320;</span><b id="e7">0.00</b></div>
+        <input type="range" id="r7" min="-3" max="3" step="0.02" value="0" />
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Modelo y clasificación</h2>
+      <table>
+        <tbody id="tablaModelo"></tbody>
+      </table>
+      <div class="nota" id="notaModelo"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Verificación: modelo contra fenómeno</h2>
+      <table>
+        <tbody id="tablaVerif"></tbody>
+      </table>
+      <div class="nota" id="veredicto"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Efecto no modelado</h2>
+      <select id="selEfecto">
+        <option value="ninguno">Ninguno (el modelo lineal es exacto)</option>
+        <option value="seco">Rozamiento seco (Coulomb)</option>
+        <option value="no_lineal">Resorte no lineal (se ablanda)</option>
+        <option value="cuadratica">Amortiguamiento cuadrático</option>
+      </select>
+      <div class="fila">
+        <button class="mini oro" id="btnExamen">Modo examen (al azar y oculto)</button>
+      </div>
+      <div class="nota">
+        <b>Reto:</b> con el fenómeno en marcha, observe la discrepancia y diagnostique qué
+        supuesto del modelo falla.
+      </div>
+      <div class="fila">
+        <button class="mini" data-diag="ninguno">Ninguno</button>
+        <button class="mini" data-diag="seco">Rozamiento seco</button>
+        <button class="mini" data-diag="no_lineal">Resorte no lineal</button>
+        <button class="mini" data-diag="cuadratica">Amort. cuadrático</button>
+      </div>
+      <div class="nota" id="textoDiag"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Gráficas manipulables</h2>
+      <div class="casillas">
+        <label><input type="checkbox" id="gFen" checked /> Fenómeno (dorado)</label>
+        <label><input type="checkbox" id="gMod" checked /> Modelo lineal (cian)</label>
+        <label><input type="checkbox" id="gVel" /> Velocidad / corriente</label>
+        <label><input type="checkbox" id="gDif" /> Diferencia (fenómeno − modelo)</label>
+        <label><input type="checkbox" id="gPicos" checked /> Picos que analiza el clasificador</label>
+      </div>
+      <div class="fila">
+        <button class="mini activo" data-panel="resonancia">Resonancia</button>
+        <button class="mini" data-panel="fase">Retrato de fase</button>
+      </div>
+      <div class="fila">
+        <button class="mini" data-panel="energia">Energía</button>
+        <button class="mini" data-panel="decaimiento">Decaimiento y ajuste</button>
+      </div>
+      <div class="nota">
+        Rueda del ratón sobre las gráficas: acercar. Arrastrar: desplazarse en el tiempo.
+        El cursor muestra los valores en cada instante.
+      </div>
+      <div class="fila">
+        <button class="mini" id="btnPNGgraf">PNG de las gráficas</button>
+        <button class="mini" id="btnPNGfen">PNG del fenómeno</button>
+      </div>
+      <div class="nota" id="textoAjuste"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Datos para Excel</h2>
+      <div class="fila">
+        <button class="mini activo" id="btnXLSX">Descargar Excel (.xlsx)</button>
+        <button class="mini" id="btnCSV">Descargar CSV</button>
+      </div>
+      <div class="nota" id="estadoExport">
+        El libro trae cuatro hojas: <b>Datos</b> (t, fenómeno, modelo y su diferencia),
+        <b>Parametros</b>, <b>Metricas</b> y <b>Resonancia</b> (amplitud medida frente a la del
+        modelo lineal en cada frecuencia).
+      </div>
+      <div class="nota">
+        <b>Análisis sugerido con esos datos:</b><br />
+        1. Grafique <code>x</code> frente a <code>t</code> y superponga el modelo.<br />
+        2. Tome los picos sucesivos <code>A_n</code> y grafique <code>ln(A_n)</code> contra el
+        número de ciclo: la pendiente da <code>&minus;&zeta;&omega;&#8320;</code>; compare con
+        <code>c/(2m)</code>.<br />
+        3. En la hoja <b>Resonancia</b>, ubique el máximo de la columna medida y compárelo con
+        <code>&omega;<sub>r</sub> = &omega;&#8320;&radic;(1&minus;2&zeta;&sup2;)</code>.<br />
+        4. Si el máximo medido está corrido o el decaimiento no es exponencial, el modelo lineal
+        falla: escriba cuál supuesto habría que cambiar.
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Nota matemática</h2>
+      <div class="nota">
+        Con <code>&omega;&#8320; = &radic;(k/m)</code> y <code>&zeta; = c/(2&radic;(km))</code>, el
+        modelo se escribe <code>x&Prime; + 2&zeta;&omega;&#8320;x&prime; + &omega;&#8320;&sup2;x = (F&#8320;/m)cos(&omega;t)</code>.<br />
+        R&eacute;gimen: <code>&zeta;&lt;1</code> subamortiguado, <code>&zeta;=1</code> cr&iacute;tico,
+        <code>&zeta;&gt;1</code> sobreamortiguado.<br />
+        Amplitud de r&eacute;gimen permanente:
+        <code>A = (F&#8320;/k) / &radic;((1&minus;r&sup2;)&sup2; + (2&zeta;r)&sup2;)</code> con
+        <code>r = &omega;/&omega;&#8320;</code>; el pico est&aacute; en
+        <code>&omega;<sub>r</sub> = &omega;&#8320;&radic;(1&minus;2&zeta;&sup2;)</code> (si
+        <code>&zeta; &lt; 1/&radic;2</code>).<br />
+        <b>Analogía eléctrica:</b> <code>L q&Prime; + R q&prime; + q/C = V&#8320;cos(&omega;t)</code>,
+        es decir <code>L&harr;m</code>, <code>R&harr;c</code>, <code>1/C&harr;k</code>,
+        <code>V&#8320;&harr;F&#8320;</code>, y la corriente <code>i = q&prime;</code> es la
+        velocidad del resorte.<br />
+        <b>Verificación:</b> el panel compara la se&ntilde;al del fen&oacute;meno con la del modelo
+        (mismas condiciones y misma excitaci&oacute;n) y mide su diferencia; un clasificador num&eacute;rico
+        propone el efecto no modelado a partir del decaimiento libre y del corrimiento del pico de
+        resonancia.
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+/* ==== MATH:BEGIN ==== */
+const EFECTOS = ['ninguno', 'seco', 'no_lineal', 'cuadratica'];
+
+/* Parámetros derivados del sistema. */
+function clasificar(m, c, k) {
+  const w0 = Math.sqrt(k / m);
+  const zeta = c / (2 * Math.sqrt(k * m));
+  const delta = c * c - 4 * m * k;
+  const regimen = zeta < 1 - 1e-9 ? 'subamortiguado' : (Math.abs(zeta - 1) <= 1e-9 ? 'crítico' : 'sobreamortiguado');
+  return { w0, zeta, delta, regimen };
+}
+
+/* Amplitud y fase de la respuesta permanente del modelo lineal. */
+function amplitudEstacionaria(m, c, k, F0, w) {
+  const r = w / Math.sqrt(k / m);
+  const z = c / (2 * Math.sqrt(k * m));
+  const den = Math.sqrt(Math.pow(1 - r * r, 2) + Math.pow(2 * z * r, 2));
+  return { A: den === 0 ? Infinity : (F0 / k) / den, fase: Math.atan2(2 * z * r, 1 - r * r), r, z };
+}
+
+/* Frecuencia de resonancia (máximo de la amplitud); null si no hay pico. */
+function frecuenciaResonancia(m, c, k) {
+  const { zeta } = clasificar(m, c, k);
+  if (zeta >= 1 / Math.SQRT2) return null;
+  return Math.sqrt(k / m) * Math.sqrt(1 - 2 * zeta * zeta);
+}
+
+/* Dinámica del estado [x, v] con un efecto no modelado opcional. */
+function derivadaEstado(P, efecto) {
+  const ef = efecto || 'ninguno';
+  return function (t, y) {
+    const x = y[0], v = y[1];
+    let fuerza = P.F0 * Math.cos(P.w * t);
+    let amort = P.c * v;
+    let rigidez = P.k * x;
+    if (ef === 'seco') fuerza -= P.Fc * Math.sign(v);
+    if (ef === 'no_lineal') rigidez = P.k * (1 + P.k3rel * x * x) * x;
+    if (ef === 'cuadratica') amort = (P.c + P.c2rel * Math.abs(v)) * v;
+    return [v, (fuerza - amort - rigidez) / P.m];
+  };
+}
+
+function pasoRK4Estado(der, t, y, h) {
+  const k1 = der(t, y);
+  const k2 = der(t + h / 2, [y[0] + h * k1[0] / 2, y[1] + h * k1[1] / 2]);
+  const k3 = der(t + h / 2, [y[0] + h * k2[0] / 2, y[1] + h * k2[1] / 2]);
+  const k4 = der(t + h, [y[0] + h * k3[0], y[1] + h * k3[1]]);
+  return [
+    y[0] + (h / 6) * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]),
+    y[1] + (h / 6) * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1])
+  ];
+}
+
+/* Integra el sistema desde t0 hasta t1 con paso h. */
+function integrarEstado(P, efecto, t0, y0, t1, h) {
+  const der = derivadaEstado(P, efecto);
+  const pts = [[t0, y0[0], y0[1]]];
+  let t = t0, y = [y0[0], y0[1]];
+  const n = Math.max(1, Math.ceil((t1 - t0) / h));
+  const hh = (t1 - t0) / n;
+  for (let i = 0; i < n; i++) {
+    y = pasoRK4Estado(der, t, y, hh);
+    t += hh;
+    if (!Number.isFinite(y[0]) || !Number.isFinite(y[1])) break;
+    pts.push([t, y[0], y[1]]);
+  }
+  return pts;
+}
+
+/* Solución analítica del modelo libre (F0 = 0) en los tres regímenes. */
+function analiticaLibre(m, c, k, x0, v0, t) {
+  const { w0, zeta, regimen } = clasificar(m, c, k);
+  if (regimen === 'subamortiguado') {
+    const wd = w0 * Math.sqrt(1 - zeta * zeta);
+    return Math.exp(-zeta * w0 * t) * (x0 * Math.cos(wd * t) + ((v0 + zeta * w0 * x0) / wd) * Math.sin(wd * t));
+  }
+  if (regimen === 'crítico') {
+    return (x0 + (v0 + w0 * x0) * t) * Math.exp(-w0 * t);
+  }
+  const raiz = w0 * Math.sqrt(zeta * zeta - 1);
+  const r1 = -zeta * w0 + raiz, r2 = -zeta * w0 - raiz;
+  const C2 = (v0 - r1 * x0) / (r2 - r1);
+  const C1 = x0 - C2;
+  return C1 * Math.exp(r1 * t) + C2 * Math.exp(r2 * t);
+}
+
+/* Amplitudes de los picos sucesivos de una serie temporal (para el decaimiento). */
+function picosDecrecientes(pts) {
+  const picos = [];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = Math.abs(pts[i - 1][1]), b = Math.abs(pts[i][1]), c = Math.abs(pts[i + 1][1]);
+    if (b > a && b >= c) picos.push(b);
+  }
+  return picos;
+}
+
+/* Bondad de un ajuste lineal (R²) entre xs e ys. */
+function r2(xs, ys) {
+  const n = Math.min(xs.length, ys.length);
+  if (n < 3) return 0;
+  const mx = xs.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  const my = ys.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i] - mx) * (ys[i] - my);
+    sxx += (xs[i] - mx) ** 2;
+    syy += (ys[i] - my) ** 2;
+  }
+  if (sxx === 0 || syy === 0) return 0;
+  return (sxy * sxy) / (sxx * syy);
+}
+
+/* Barrido de la amplitud de régimen permanente frente a la frecuencia. */
+function barridoResonancia(P, n) {
+  const puntos = [];
+  const { w0 } = clasificar(P.m, P.c, P.k);
+  for (let i = 0; i <= n; i++) {
+    const w = (0.15 + (2.2 * i) / n) * w0;
+    const Q = Object.assign({}, P, { w: w });
+    const T = Math.max(40 / w0, 8 * 2 * Math.PI / Math.max(w, 0.2));
+    const pts = integrarEstado(Q, P.efecto || 'ninguno', 0, [0, 0], T, 0.01);
+    const desde = Math.floor(pts.length * 0.7);
+    let A = 0;
+    for (let k = desde; k < pts.length; k++) A = Math.max(A, Math.abs(pts[k][1]));
+    puntos.push({ w: w, A: A });
+  }
+  return puntos;
+}
+
+/* Correlación de Pearson (con signo). */
+function correlacion(xs, ys) {
+  const n = Math.min(xs.length, ys.length);
+  if (n < 3) return 0;
+  const mx = xs.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  const my = ys.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i] - mx) * (ys[i] - my);
+    sxx += (xs[i] - mx) ** 2;
+    syy += (ys[i] - my) ** 2;
+  }
+  if (sxx === 0 || syy === 0) return 0;
+  return sxy / Math.sqrt(sxx * syy);
+}
+
+/* Ajuste lineal por mínimos cuadrados: devuelve pendiente a y ordenada b. */
+function ajusteLineal(xs, ys) {
+  const n = Math.min(xs.length, ys.length);
+  if (n < 2) return { a: 0, b: 0 };
+  const mx = xs.slice(0, n).reduce((s, v) => s + v, 0) / n;
+  const my = ys.slice(0, n).reduce((s, v) => s + v, 0) / n;
+  let sxy = 0, sxx = 0;
+  for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; }
+  const a = sxx === 0 ? 0 : sxy / sxx;
+  return { a, b: my - a * mx };
+}
+
+/* Clasificador: mide el fenómeno y propone el efecto no modelado.
+   Primero mira si el pico de resonancia se corrió (rigidez no lineal); si no,
+   analiza el decaimiento libre: un decremento constante delata rozamiento seco,
+   y un decremento relativo que crece con la amplitud delata frenado cuadrático. */
+function diagnosticar(P) {
+  const barrido = barridoResonancia(P, 36);
+  const pico = barrido.reduce((a, b) => (b.A > a.A ? b : a));
+  const cl = clasificar(P.m, P.c, P.k);
+  const wTeorica = frecuenciaResonancia(P.m, P.c, P.k) || cl.w0;
+  if (pico.w < 0.92 * wTeorica) {
+    return { efecto: 'no_lineal',
+             evidencia: `el pico medido está en ω=${pico.w.toFixed(2)} y el modelo lineal lo predice en ${wTeorica.toFixed(2)}: el resorte pierde rigidez al estirarse` };
+  }
+  const P0 = Object.assign({}, P, { F0: 0, efecto: P.efecto || 'ninguno' });
+  const libres = integrarEstado(P0, P0.efecto, 0, [P.x0 === 0 ? 1 : P.x0, 0], 40 / cl.w0, 0.002);
+  const amps = picosDecrecientes(libres);
+  const A = [], dec = [];
+  for (let i = 1; i < amps.length; i++) {
+    const d = amps[i - 1] - amps[i];
+    if (d < 1e-4) break;                 // la masa se detuvo: no aporta al diagnóstico
+    A.push(amps[i - 1]); dec.push(d);
+  }
+  if (A.length < 3) {
+    return { efecto: 'ninguno', evidencia: 'no hay suficientes oscilaciones libres para diagnosticar' };
+  }
+  const rho = A.map((a, i) => dec[i] / a);
+  const corr = correlacion(A, rho);
+  const { b } = ajusteLineal(A, dec);
+  const media = dec.reduce((x, y) => x + y, 0) / dec.length;
+  if (corr > 0.5) {
+    return { efecto: 'cuadratica',
+             evidencia: `el decremento relativo crece con la amplitud (correlación ${corr.toFixed(2)}): la fuerza de frenado no es proporcional a la velocidad` };
+  }
+  if (b > 0.25 * media) {
+    return { efecto: 'seco',
+             evidencia: `el decremento por ciclo tiene una parte fija de ${b.toFixed(3)} que no depende de la amplitud (media ${media.toFixed(3)}): hay rozamiento constante` };
+  }
+  return { efecto: 'ninguno',
+           evidencia: `el decremento es proporcional a la amplitud (parte fija ${b.toFixed(3)} frente a una media de ${media.toFixed(3)}): decaimiento exponencial, como predice el modelo` };
+}
+/* ==== MATH:END ==== */
+
+/* ---------------- aplicación ---------------- */
+const P = { fenomeno: 'resorte', m: 1, c: 0.5, k: 10, F0: 2, w: 2, x0: 1, v0: 0,
+            efecto: 'ninguno', Fc: 0.35, k3rel: -0.25, c2rel: 0.6 };
+
+const ETIQUETAS = {
+  resorte: { f1: 'masa m (kg)', f2: 'amortiguamiento c (N·s/m)', f3: 'rigidez k (N/m)',
+             f4: 'fuerza F₀ (N)', f6: 'posición inicial x₀ (m)', f7: 'velocidad inicial v₀ (m/s)',
+             unidad1: '', unidad2: '', unidad3: '' },
+  rlc: { f1: 'inductancia L (H)', f2: 'resistencia R (Ω)', f3: 'elastancia 1/C (1/F)',
+         f4: 'tensión V₀ (V)', f6: 'carga inicial q₀ (mC)', f7: 'corriente inicial i₀ (mA)',
+         unidad1: '', unidad2: '', unidad3: '' }
+};
+
+const cFen = document.getElementById('cFen');
+const cGraf = document.getElementById('cGraf');
+const ctxFen = cFen.getContext('2d');
+const ctxGraf = cGraf.getContext('2d');
+const selFenomeno = document.getElementById('selFenomeno');
+const selEfecto = document.getElementById('selEfecto');
+const btnExamen = document.getElementById('btnExamen');
+const btnReiniciar = document.getElementById('btnReiniciar');
+const tablaModelo = document.getElementById('tablaModelo');
+const tablaVerif = document.getElementById('tablaVerif');
+const veredicto = document.getElementById('veredicto');
+const textoDiag = document.getElementById('textoDiag');
+const notaModelo = document.getElementById('notaModelo');
+const eW0 = document.getElementById('eW0'), eZeta = document.getElementById('eZeta'), eRegimen = document.getElementById('eRegimen');
+const eAmed = document.getElementById('eAmed'), eAmod = document.getElementById('eAmod'), eDisc = document.getElementById('eDisc');
+
+let sim = { t: 0, fen: [P.x0, P.v0], mod: [P.x0, P.v0], hist: [], barrido: [], diag: null };
+let velocidad = 1;
+let diagElegido = null;
+
+function ajustar(cv, ctx) {
+  const r = cv.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.max(1, Math.round(r.width * dpr));
+  cv.height = Math.max(1, Math.round(r.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+function ajustarTodo() { ajustar(cFen, ctxFen); ajustar(cGraf, ctxGraf); }
+window.addEventListener('resize', () => { ajustarTodo(); dibujar(); });
+
+function reiniciarSimulacion() {
+  sim.t = 0;
+  sim.fen = [P.x0, P.v0];
+  sim.mod = [P.x0, P.v0];
+  sim.hist = [];
+}
+
+function recalcular() {
+  const cl = clasificar(P.m, P.c, P.k);
+  const amp = amplitudEstacionaria(P.m, P.c, P.k, P.F0, P.w);
+  const wr = frecuenciaResonancia(P.m, P.c, P.k);
+  eW0.textContent = cl.w0.toFixed(3);
+  eZeta.textContent = cl.zeta.toFixed(3);
+  eRegimen.textContent = cl.regimen;
+  tablaModelo.innerHTML =
+    `<tr><td>&omega;&#8320; = &radic;(k/m)</td><td>${cl.w0.toFixed(4)} rad/s</td></tr>` +
+    `<tr><td>&zeta; = c/(2&radic;(km))</td><td>${cl.zeta.toFixed(4)}</td></tr>` +
+    `<tr><td>&Delta; = c&sup2; &minus; 4mk</td><td>${cl.delta.toFixed(3)}</td></tr>` +
+    `<tr><td>amplitud A(&omega;) del modelo</td><td>${Number.isFinite(amp.A) ? amp.A.toFixed(4) : '∞'}</td></tr>` +
+    `<tr><td>desfase &phi;</td><td>${amp.fase.toFixed(3)} rad</td></tr>` +
+    `<tr><td>&omega;<sub>r</sub> de resonancia</td><td>${wr === null ? 'no hay pico' : wr.toFixed(4) + ' rad/s'}</td></tr>`;
+  notaModelo.innerHTML = wr === null
+    ? 'Con este amortiguamiento la amplitud no presenta máximo: la respuesta decae con ω.'
+    : `Si excita cerca de &omega; = ${wr.toFixed(3)} rad/s la amplitud crece sin que la fuerza aumente.`;
+  sim.barrido = barridoResonancia(P, 60);
+  sim.diag = diagnosticar(P);
+  veredicto.innerHTML = `<b>Clasificador:</b> ${textoEfecto(sim.diag.efecto)}.<br />` +
+    `<span style="opacity:.85">Evidencia: ${sim.diag.evidencia}.</span>`;
+  dibujar();
+}
+
+function textoEfecto(e) {
+  return { ninguno: 'el modelo lineal explica el fenómeno', seco: 'rozamiento seco (Coulomb)',
+           no_lineal: 'resorte no lineal que se ablanda', cuadratica: 'amortiguamiento cuadrático' }[e];
+}
+
+function medir() {
+  if (sim.hist.length < 40) return null;
+  const desde = Math.floor(sim.hist.length * 0.55);
+  let am = 0, amod = 0, suma = 0, n = 0;
+  for (let i = desde; i < sim.hist.length; i++) {
+    const [, xf, , xm] = sim.hist[i];
+    am = Math.max(am, Math.abs(xf));
+    amod = Math.max(amod, Math.abs(xm));
+    suma += (xf - xm) ** 2; n++;
+  }
+  return { am, amod, rms: Math.sqrt(suma / Math.max(1, n)) };
+}
+
+function avanzar(dt) {
+  const derF = derivadaEstado(P, P.efecto);
+  const derM = derivadaEstado(P, 'ninguno');
+  sim.fen = pasoRK4Estado(derF, sim.t, sim.fen, dt);
+  sim.mod = pasoRK4Estado(derM, sim.t, sim.mod, dt);
+  sim.t += dt;
+  sim.hist.push([sim.t, sim.fen[0], sim.fen[1], sim.mod[0], sim.mod[1]]);
+  if (sim.hist.length > 1400) sim.hist.shift();
+}
+
+/* ---------- dibujo del fenómeno ---------- */
+function dibujarResorte(W, H) {
+  const x = sim.fen[0];
+  const escala = Math.min(H * 0.30, 190);
+  const techo = H * 0.10;
+  const yEq = H * 0.46;
+  const y = yEq + x * escala;
+  const cx = W * 0.42;
+
+  ctxFen.strokeStyle = 'rgba(148,163,184,.55)';
+  ctxFen.lineWidth = 3;
+  ctxFen.beginPath(); ctxFen.moveTo(cx - 90, techo); ctxFen.lineTo(cx + 90, techo); ctxFen.stroke();
+
+  // resorte en zigzag entre el techo y la masa
+  const largo = Math.max(18, y - techo - 16);
+  const vueltas = 11;
+  ctxFen.strokeStyle = '#94a3b8';
+  ctxFen.lineWidth = 2;
+  ctxFen.beginPath();
+  ctxFen.moveTo(cx, techo);
+  for (let i = 0; i <= vueltas; i++) {
+    const t = i / vueltas;
+    const yy = techo + t * largo;
+    const xx = cx + (i === 0 || i === vueltas ? 0 : (i % 2 === 0 ? -1 : 1) * 22);
+    ctxFen.lineTo(xx, yy);
+  }
+  ctxFen.stroke();
+
+  // amortiguador
+  const xd = cx + 74;
+  ctxFen.strokeStyle = 'rgba(0,242,254,.55)';
+  ctxFen.lineWidth = 2;
+  ctxFen.strokeRect(xd - 13, yEq - 26, 26, 52);
+  ctxFen.beginPath();
+  ctxFen.moveTo(xd, techo + 20); ctxFen.lineTo(xd, y - 6);
+  ctxFen.stroke();
+  ctxFen.fillStyle = 'rgba(0,242,254,.35)';
+  ctxFen.fillRect(xd - 11, y + 4, 22, 14);
+
+  // masa
+  ctxFen.fillStyle = 'rgba(0,242,254,.85)';
+  ctxFen.fillRect(cx - 42, y, 84, 34);
+  ctxFen.strokeStyle = '#e2e8f0'; ctxFen.lineWidth = 1.5;
+  ctxFen.strokeRect(cx - 42, y, 84, 34);
+  ctxFen.fillStyle = '#040814';
+  ctxFen.font = 'bold 13px ui-monospace, monospace';
+  ctxFen.fillText('m', cx - 5, y + 22);
+
+  // fuerza aplicada
+  const F = P.F0 * Math.cos(P.w * sim.t);
+  const largoF = Math.max(-110, Math.min(110, F * 22));
+  ctxFen.strokeStyle = '#ffd166'; ctxFen.lineWidth = 3;
+  ctxFen.beginPath();
+  ctxFen.moveTo(cx + 42, y + 17);
+  ctxFen.lineTo(cx + 42 + largoF, y + 17);
+  ctxFen.stroke();
+  if (Math.abs(largoF) > 6) {
+    const s = Math.sign(largoF);
+    ctxFen.beginPath();
+    ctxFen.moveTo(cx + 42 + largoF, y + 17);
+    ctxFen.lineTo(cx + 42 + largoF - s * 9, y + 11);
+    ctxFen.lineTo(cx + 42 + largoF - s * 9, y + 23);
+    ctxFen.closePath(); ctxFen.fillStyle = '#ffd166'; ctxFen.fill();
+  }
+
+  // equilibrio y regla
+  ctxFen.setLineDash([6, 6]);
+  ctxFen.strokeStyle = 'rgba(226,232,240,.35)'; ctxFen.lineWidth = 1;
+  ctxFen.beginPath(); ctxFen.moveTo(W * 0.08, yEq); ctxFen.lineTo(W * 0.92, yEq); ctxFen.stroke();
+  ctxFen.setLineDash([]);
+  ctxFen.strokeStyle = 'rgba(148,163,184,.5)';
+  for (let v = -2; v <= 2; v += 0.5) {
+    const yy = yEq + v * escala;
+    ctxFen.beginPath(); ctxFen.moveTo(W * 0.08, yy); ctxFen.lineTo(W * 0.08 + (Math.abs(v % 1) < 1e-6 ? 12 : 6), yy); ctxFen.stroke();
+  }
+  ctxFen.fillStyle = 'rgba(226,232,240,.75)';
+  ctxFen.font = '12px ui-monospace, monospace';
+  ctxFen.fillText(`x = ${x.toFixed(3)} m`, W * 0.08, H * 0.06);
+  ctxFen.fillText(`F(t) = ${F.toFixed(2)} N`, W * 0.08, H * 0.06 + 16);
+}
+
+function dibujarRLC(W, H) {
+  const q = sim.fen[0], i = sim.fen[1];
+  const esc = Math.min(W, H) * 0.30;
+  const cx = W * 0.5, cy = H * 0.5;
+  const x0 = cx - esc * 1.2, x1 = cx + esc * 1.2, y0 = cy - esc * 0.6, y1 = cy + esc * 0.6;
+
+  ctxFen.strokeStyle = 'rgba(148,163,184,.85)';
+  ctxFen.lineWidth = 2.5;
+  ctxFen.beginPath();
+  ctxFen.moveTo(x0, y1); ctxFen.lineTo(x0, y0); ctxFen.lineTo(x1, y0);
+  ctxFen.lineTo(x1, y1); ctxFen.lineTo(x0, y1);
+  ctxFen.stroke();
+
+  // fuente alterna (arriba a la izquierda)
+  ctxFen.beginPath(); ctxFen.arc(x0, cy, 26, 0, Math.PI * 2);
+  ctxFen.strokeStyle = '#ffd166'; ctxFen.lineWidth = 2; ctxFen.stroke();
+  const ang = P.w * sim.t;
+  ctxFen.beginPath();
+  ctxFen.moveTo(x0, cy);
+  ctxFen.lineTo(x0 + 20 * Math.cos(-ang), cy + 20 * Math.sin(-ang));
+  ctxFen.strokeStyle = '#ffd166'; ctxFen.stroke();
+  ctxFen.fillStyle = 'rgba(255,209,102,.9)';
+  ctxFen.font = '11px ui-monospace, monospace';
+  ctxFen.fillText(`${(P.F0 * Math.cos(ang)).toFixed(1)} V`, x0 - 22, cy - 34);
+
+  // resistencia (zigzag arriba)
+  const rIni = x0 + esc * 0.45, rFin = x0 + esc * 1.15;
+  ctxFen.strokeStyle = '#00f2fe'; ctxFen.lineWidth = 2;
+  ctxFen.beginPath(); ctxFen.moveTo(rIni, y0);
+  for (let k = 0; k <= 8; k++) {
+    ctxFen.lineTo(rIni + (rFin - rIni) * (k / 8), y0 + (k % 2 === 0 ? -9 : 9));
+  }
+  ctxFen.lineTo(rFin, y0); ctxFen.stroke();
+  ctxFen.fillStyle = 'rgba(0,242,254,.9)';
+  ctxFen.fillText(`R = ${P.c.toFixed(1)} Ω`, rIni, y0 - 22);
+
+  // inductancia (derecha, arcos)
+  ctxFen.strokeStyle = '#a78bfa'; ctxFen.lineWidth = 2;
+  for (let k = 0; k < 4; k++) {
+    ctxFen.beginPath();
+    ctxFen.arc(x1, y0 + 18 + k * 22, 11, -Math.PI / 2, Math.PI / 2);
+    ctxFen.stroke();
+  }
+  ctxFen.fillStyle = 'rgba(167,139,250,.9)';
+  ctxFen.fillText(`L = ${P.m.toFixed(2)} H`, x1 + 16, y0 + 40);
+
+  // capacitor (abajo)
+  const capCx = cx;
+  ctxFen.strokeStyle = '#4ade80'; ctxFen.lineWidth = 3;
+  ctxFen.beginPath();
+  ctxFen.moveTo(capCx - 16, y1); ctxFen.lineTo(capCx - 16, y1 - 22);
+  ctxFen.moveTo(capCx + 16, y1); ctxFen.lineTo(capCx + 16, y1 - 22);
+  ctxFen.stroke();
+  ctxFen.lineWidth = 2;
+  ctxFen.beginPath(); ctxFen.moveTo(x0, y1); ctxFen.lineTo(capCx - 16, y1);
+  ctxFen.moveTo(capCx + 16, y1); ctxFen.lineTo(x1, y1); ctxFen.stroke();
+  const qq = Math.max(-1, Math.min(1, q / 1.2));
+  ctxFen.fillStyle = `rgba(74,222,128,${0.25 + 0.75 * Math.abs(qq)})`;
+  ctxFen.font = 'bold 16px ui-monospace, monospace';
+  ctxFen.fillText(qq > 0 ? '+++++' : '−−−−−', capCx - 34, y1 - 30);
+  ctxFen.fillStyle = 'rgba(226,232,240,.8)';
+  ctxFen.font = '12px ui-monospace, monospace';
+  ctxFen.fillText(`q = ${q.toFixed(3)} mC`, capCx - 60, y1 + 24);
+  ctxFen.fillText(`i = ${i.toFixed(3)} mA`, capCx - 60, y1 + 40);
+  ctxFen.fillText(`1/C = ${P.k.toFixed(1)} 1/F`, capCx - 60, y1 + 56);
+
+  // corriente circulando
+  const vel = Math.max(-40, Math.min(40, i * 20));
+  ctxFen.fillStyle = 'rgba(255,209,102,.9)';
+  for (let k = 0; k < 14; k++) {
+    const f = ((k / 14) + (sim.t * vel / 60)) % 1;
+    let px, py;
+    if (f < 0.25) { px = x0; py = y1 - (y1 - y0) * (f / 0.25); }
+    else if (f < 0.5) { px = x0 + (x1 - x0) * ((f - 0.25) / 0.25); py = y0; }
+    else if (f < 0.75) { px = x1; py = y0 + (y1 - y0) * ((f - 0.5) / 0.25); }
+    else { px = x1 - (x1 - x0) * ((f - 0.75) / 0.25); py = y1; }
+    ctxFen.beginPath(); ctxFen.arc(px, py, 3, 0, Math.PI * 2); ctxFen.fill();
+  }
+}
+
+function dibujarFenomeno() {
+  const r = cFen.parentElement.getBoundingClientRect();
+  const W = r.width, H = r.height;
+  ctxFen.clearRect(0, 0, W, H);
+  if (P.fenomeno === 'resorte') dibujarResorte(W, H); else dibujarRLC(W, H);
+  ctxFen.fillStyle = 'rgba(148,163,184,.85)';
+  ctxFen.font = '12px Inter, sans-serif';
+  ctxFen.fillText('FENÓMENO (con los efectos reales)', 14, H - 12);
+}
+
+/* ---------- panel de gráficas interactivo ---------- */
+const graf = { verFen: true, verMod: true, verVel: false, verDif: false, verPicos: true,
+               panel: 'resonancia', zoom: 1, cx: 0.5, cursor: null,
+               arrastrando: false, ultimoX: 0, ajuste: null };
+
+function ventanaTiempo() {
+  if (sim.hist.length < 2) return { ta: 0, tb: 1 };
+  const t0 = sim.hist[0][0], t1 = sim.hist[sim.hist.length - 1][0];
+  const total = Math.max(1e-6, t1 - t0);
+  const ancho = total / graf.zoom;
+  const centro = Math.min(t1 - ancho / 2, Math.max(t0 + ancho / 2, t0 + graf.cx * total));
+  return { ta: centro - ancho / 2, tb: centro + ancho / 2 };
+}
+
+/* Ajuste del decaimiento: ln(A_n) contra n. Devuelve zeta estimado y la recta. */
+function ajusteDecaimiento() {
+  const picos = picosDecrecientes(sim.hist.map(h => [h[0], h[1]]));
+  if (picos.length < 4) return null;
+  const idx = [], ln = [], tiempos = [];
+  for (let i = 0; i < picos.length; i++) {
+    const n = picos[i];
+    if (n <= 1e-6) continue;
+    idx.push(idx.length);
+    ln.push(Math.log(n));
+    tiempos.push(i);
+  }
+  if (idx.length < 4) return null;
+  const { a, b } = ajusteLineal(idx, ln);
+  // separación temporal media entre picos → periodo amortiguado
+  let suma = 0, cuenta = 0;
+  for (let i = 1; i < tiempos.length; i++) { suma += tiempos[i] - tiempos[i - 1]; cuenta++; }
+  const Td = cuenta ? suma / cuenta : 0;
+  const cl = clasificar(P.m, P.c, P.k);
+  const zetaEst = Td > 0 ? -a / (cl.w0 * Td) : NaN;
+  // bondad del ajuste exponencial
+  const r2ajuste = r2(idx, ln);
+  return { a, b, zetaEst, zetaTeo: cl.zeta, r2: r2ajuste, n: idx.length, A0: Math.exp(b) };
+}
+
+function dibujarGraficas() {
+  const r = cGraf.parentElement.getBoundingClientRect();
+  const W = r.width, H = r.height;
+  ctxGraf.clearRect(0, 0, W, H);
+  const corte = W * 0.585;
+  const { ta, tb } = ventanaTiempo();
+  const xIzq = 46, xDer = corte - 16, yTop = 26, yInf = H - 26;
+  const y0 = (yTop + yInf) / 2;
+  const px = (t) => xIzq + (xDer - xIzq) * ((t - ta) / Math.max(1e-9, tb - ta));
+
+  ctxGraf.strokeStyle = 'rgba(148,163,184,.35)'; ctxGraf.lineWidth = 1;
+  ctxGraf.beginPath(); ctxGraf.moveTo(xIzq, yTop); ctxGraf.lineTo(xIzq, yInf); ctxGraf.lineTo(xDer, yInf); ctxGraf.stroke();
+  ctxGraf.strokeStyle = 'rgba(148,163,184,.22)';
+  ctxGraf.beginPath(); ctxGraf.moveTo(xIzq, y0); ctxGraf.lineTo(xDer, y0); ctxGraf.stroke();
+
+  const visibles = sim.hist.filter(h => h[0] >= ta - 0.05 && h[0] <= tb + 0.05);
+  let amax = 1e-9, vmax = 1e-9, dmax = 1e-9;
+  for (const h of visibles) {
+    amax = Math.max(amax, Math.abs(h[1]), Math.abs(h[3]));
+    vmax = Math.max(vmax, Math.abs(h[2]), Math.abs(h[4]));
+    dmax = Math.max(dmax, Math.abs(h[1] - h[3]));
+  }
+  const esc = (yInf - yTop) * 0.44 / amax;
+  ctxGraf.fillStyle = 'rgba(148,163,184,.8)'; ctxGraf.font = '10px ui-monospace, monospace';
+  ctxGraf.fillText(`${amax.toFixed(2)}`, 6, y0 - (yInf - yTop) * 0.44 + 4);
+  ctxGraf.fillText('0', 32, y0 + 4);
+  ctxGraf.fillText(`-${amax.toFixed(2)}`, 4, y0 + (yInf - yTop) * 0.44 + 4);
+  ctxGraf.fillText(`${ta.toFixed(1)} s`, xIzq, yInf + 14);
+  ctxGraf.fillText(`${tb.toFixed(1)} s`, xDer - 32, yInf + 14);
+
+  const trazar = (f, color, ancho, escala, linea) => {
+    if (!visibles.length) return;
+    ctxGraf.strokeStyle = color; ctxGraf.lineWidth = ancho;
+    if (linea) ctxGraf.setLineDash(linea);
+    ctxGraf.beginPath();
+    visibles.forEach((h, i) => {
+      const X = px(h[0]), Y = y0 - f(h) * escala;
+      if (i === 0) ctxGraf.moveTo(X, Y); else ctxGraf.lineTo(X, Y);
+    });
+    ctxGraf.stroke();
+    if (linea) ctxGraf.setLineDash([]);
+  };
+
+  if (graf.verDif) trazar(h => h[1] - h[3], 'rgba(248,113,113,.95)', 1.3, (yInf - yTop) * 0.44 / dmax);
+  if (graf.verMod) trazar(h => h[3], 'rgba(0,242,254,.9)', 1.7, esc);
+  if (graf.verFen) trazar(h => h[1], '#ffd166', 1.9, esc);
+  if (graf.verVel) trazar(h => h[2], 'rgba(74,222,128,.85)', 1.2, (yInf - yTop) * 0.30 / vmax);
+
+  // régimen permanente teórico (solución forzada del modelo)
+  const cl = clasificar(P.m, P.c, P.k);
+  if (graf.verMod && P.F0 > 0 && cl.zeta > 1e-6) {
+    const { A, fase } = amplitudEstacionaria(P.m, P.c, P.k, P.F0, P.w);
+    trazar(h => A * Math.cos(P.w * h[0] - fase), 'rgba(226,232,240,.5)', 1.2, esc, [5, 4]);
+  }
+
+  // picos que analiza el clasificador
+  if (graf.verPicos) {
+    ctxGraf.fillStyle = 'rgba(255,209,102,.95)';
+    for (let i = 1; i < visibles.length - 1; i++) {
+      const a = Math.abs(visibles[i - 1][1]), b = Math.abs(visibles[i][1]), c = Math.abs(visibles[i + 1][1]);
+      if (b > a && b >= c) {
+        ctxGraf.beginPath(); ctxGraf.arc(px(visibles[i][0]), y0 - visibles[i][1] * esc, 3, 0, Math.PI * 2); ctxGraf.fill();
+      }
+    }
+  }
+
+  // cursor de lectura
+  if (graf.cursor !== null && graf.cursor >= ta && graf.cursor <= tb) {
+    const X = px(graf.cursor);
+    ctxGraf.strokeStyle = 'rgba(226,232,240,.45)'; ctxGraf.lineWidth = 1;
+    ctxGraf.beginPath(); ctxGraf.moveTo(X, yTop); ctxGraf.lineTo(X, yInf); ctxGraf.stroke();
+    let mejor = null;
+    for (const h of sim.hist) if (!mejor || Math.abs(h[0] - graf.cursor) < Math.abs(mejor[0] - graf.cursor)) mejor = h;
+    if (mejor) {
+      ctxGraf.fillStyle = 'rgba(8,13,28,.9)';
+      const caja = 118, cajaX = Math.min(X + 8, xDer - caja), cajaY = yTop + 4;
+      ctxGraf.fillRect(cajaX, cajaY, caja, 62);
+      ctxGraf.strokeStyle = 'rgba(148,163,184,.35)'; ctxGraf.strokeRect(cajaX, cajaY, caja, 62);
+      ctxGraf.fillStyle = '#e2e8f0'; ctxGraf.font = '10px ui-monospace, monospace';
+      ctxGraf.fillText(`t = ${mejor[0].toFixed(3)} s`, cajaX + 6, cajaY + 14);
+      ctxGraf.fillStyle = '#ffd166';
+      ctxGraf.fillText(`fen = ${mejor[1].toFixed(4)}`, cajaX + 6, cajaY + 27);
+      ctxGraf.fillStyle = '#00f2fe';
+      ctxGraf.fillText(`mod = ${mejor[3].toFixed(4)}`, cajaX + 6, cajaY + 40);
+      ctxGraf.fillStyle = '#f87171';
+      ctxGraf.fillText(`dif = ${(mejor[1] - mejor[3]).toExponential(2)}`, cajaX + 6, cajaY + 53);
+    }
+  }
+
+  ctxGraf.fillStyle = 'rgba(226,232,240,.85)'; ctxGraf.font = '12px Inter, sans-serif';
+  ctxGraf.fillText('Fenómeno frente al modelo (rueda: zoom · arrastre: desplazar)', xIzq, 16);
+
+  // ---------------- panel derecho ----------------
+  const gx0 = corte + 40, gx1 = W - 16, gy0 = H - 26, gy1 = 30;
+  ctxGraf.strokeStyle = 'rgba(148,163,184,.35)'; ctxGraf.lineWidth = 1;
+  ctxGraf.beginPath();
+  ctxGraf.moveTo(gx0, gy0); ctxGraf.lineTo(gx1, gy0);
+  ctxGraf.moveTo(gx0, gy0); ctxGraf.lineTo(gx0, gy1);
+  ctxGraf.stroke();
+  const titulos = { resonancia: 'Amplitud frente a ω', fase: 'Retrato de fase (v frente a x)',
+                    energia: 'Energía del sistema', decaimiento: 'ln(Aₙ) y ajuste exponencial' };
+  ctxGraf.fillStyle = 'rgba(226,232,240,.85)';
+  ctxGraf.fillText(titulos[graf.panel], gx0, 16);
+
+  if (graf.panel === 'resonancia') {
+    if (sim.barrido.length) {
+      const wMax = sim.barrido[sim.barrido.length - 1].w;
+      let aMax = 1e-9;
+      for (const b of sim.barrido) aMax = Math.max(aMax, b.A);
+      ctxGraf.strokeStyle = '#00f2fe'; ctxGraf.lineWidth = 1.8;
+      ctxGraf.beginPath();
+      sim.barrido.forEach((b, k) => {
+        const X = gx0 + (gx1 - gx0) * (b.w / wMax), Y = gy0 - (gy0 - gy1) * (b.A / aMax);
+        if (k === 0) ctxGraf.moveTo(X, Y); else ctxGraf.lineTo(X, Y);
+      });
+      ctxGraf.stroke();
+      const pm = sim.barrido.reduce((a, b) => (b.A > a.A ? b : a));
+      const Xm = gx0 + (gx1 - gx0) * (pm.w / wMax);
+      ctxGraf.fillStyle = '#ffd166';
+      ctxGraf.beginPath(); ctxGraf.arc(Xm, gy0 - (gy0 - gy1) * (pm.A / aMax), 4.5, 0, Math.PI * 2); ctxGraf.fill();
+      ctxGraf.font = '10px ui-monospace, monospace';
+      ctxGraf.fillText(`máx medido ω=${pm.w.toFixed(2)}`, Xm - 46, gy0 - (gy0 - gy1) * (pm.A / aMax) - 8);
+      const wr2 = frecuenciaResonancia(P.m, P.c, P.k);
+      if (wr2) {
+        const Xr = gx0 + (gx1 - gx0) * (wr2 / wMax);
+        ctxGraf.setLineDash([4, 4]); ctxGraf.strokeStyle = 'rgba(226,232,240,.55)';
+        ctxGraf.beginPath(); ctxGraf.moveTo(Xr, gy0); ctxGraf.lineTo(Xr, gy1); ctxGraf.stroke();
+        ctxGraf.setLineDash([]);
+        ctxGraf.fillText(`ω_r=${wr2.toFixed(2)}`, Xr - 24, gy1 + 12);
+      }
+      const Xa = gx0 + (gx1 - gx0) * Math.min(1, P.w / wMax);
+      ctxGraf.fillStyle = '#4ade80';
+      ctxGraf.beginPath(); ctxGraf.arc(Xa, gy0 - 5, 4.5, 0, Math.PI * 2); ctxGraf.fill();
+      ctxGraf.fillText(`ω actual=${P.w.toFixed(2)}`, Xa - 32, gy0 + 14);
+    }
+  } else if (graf.panel === 'fase') {
+    let rMax = 1e-9;
+    for (const h of visibles) rMax = Math.max(rMax, Math.abs(h[1]), Math.abs(h[3]));
+    let vM = 1e-9;
+    for (const h of visibles) vM = Math.max(vM, Math.abs(h[2]), Math.abs(h[4]));
+    const cxf = (gx0 + gx1) / 2, cyf = (gy0 + gy1) / 2;
+    const ex = (gx1 - gx0) * 0.45 / rMax, ey = (gy0 - gy1) * 0.45 / vM;
+    ctxGraf.strokeStyle = 'rgba(148,163,184,.22)';
+    ctxGraf.beginPath(); ctxGraf.moveTo(gx0, cyf); ctxGraf.lineTo(gx1, cyf);
+    ctxGraf.moveTo(cxf, gy0); ctxGraf.lineTo(cxf, gy1); ctxGraf.stroke();
+    const trazaFase = (ix, iv, color, ancho) => {
+      ctxGraf.strokeStyle = color; ctxGraf.lineWidth = ancho;
+      ctxGraf.beginPath();
+      visibles.forEach((h, i) => {
+        const X = cxf + h[ix] * ex, Y = cyf - h[iv] * ey;
+        if (i === 0) ctxGraf.moveTo(X, Y); else ctxGraf.lineTo(X, Y);
+      });
+      ctxGraf.stroke();
+    };
+    trazaFase(3, 4, 'rgba(0,242,254,.65)', 1.4);
+    trazaFase(1, 2, '#ffd166', 1.7);
+    const ult = sim.hist[sim.hist.length - 1];
+    if (ult) {
+      ctxGraf.fillStyle = '#4ade80';
+      ctxGraf.beginPath(); ctxGraf.arc(cxf + ult[1] * ex, cyf - ult[2] * ey, 4, 0, Math.PI * 2); ctxGraf.fill();
+    }
+    ctxGraf.fillStyle = 'rgba(148,163,184,.8)'; ctxGraf.font = '10px ui-monospace, monospace';
+    ctxGraf.fillText(`x: ±${rMax.toFixed(2)}`, gx1 - 60, gy0 + 13);
+    ctxGraf.fillText(`v: ±${vM.toFixed(2)}`, gx0 + 4, gy1 + 2);
+  } else if (graf.panel === 'energia') {
+    const energia = (h) => 0.5 * P.m * h[2] * h[2] + 0.5 * P.k * h[1] * h[1];
+    const energiaM = (h) => 0.5 * P.m * h[4] * h[4] + 0.5 * P.k * h[3] * h[3];
+    let eMax = 1e-9;
+    for (const h of visibles) eMax = Math.max(eMax, energia(h), energiaM(h));
+    const trazaE = (f, color, ancho) => {
+      ctxGraf.strokeStyle = color; ctxGraf.lineWidth = ancho;
+      ctxGraf.beginPath();
+      visibles.forEach((h, i) => {
+        const X = gx0 + (gx1 - gx0) * ((h[0] - ta) / Math.max(1e-9, tb - ta));
+        const Y = gy0 - (gy0 - gy1) * (f(h) / eMax);
+        if (i === 0) ctxGraf.moveTo(X, Y); else ctxGraf.lineTo(X, Y);
+      });
+      ctxGraf.stroke();
+    };
+    trazaE(energiaM, 'rgba(0,242,254,.75)', 1.4);
+    trazaE(energia, '#ffd166', 1.7);
+    const ult = sim.hist[sim.hist.length - 1];
+    if (ult) {
+      const ec = 0.5 * P.m * ult[2] * ult[2], ep = 0.5 * P.k * ult[1] * ult[1];
+      const total = Math.max(1e-9, ec + ep);
+      ctxGraf.fillStyle = 'rgba(74,222,128,.9)';
+      ctxGraf.fillRect(gx0 + 6, gy1 + 4, 90 * (ec / total), 9);
+      ctxGraf.fillStyle = 'rgba(167,139,250,.9)';
+      ctxGraf.fillRect(gx0 + 6, gy1 + 16, 90 * (ep / total), 9);
+      ctxGraf.fillStyle = 'rgba(226,232,240,.85)'; ctxGraf.font = '10px ui-monospace, monospace';
+      ctxGraf.fillText(`cinética ${(ec / total * 100).toFixed(0)}% · potencial ${(ep / total * 100).toFixed(0)}%`,
+                       gx0 + 102, gy1 + 16);
+    }
+    ctxGraf.fillStyle = 'rgba(148,163,184,.8)'; ctxGraf.font = '10px ui-monospace, monospace';
+    ctxGraf.fillText(`E máx = ${eMax.toFixed(3)} J`, gx0 + 4, gy1 + 2);
+  } else if (graf.panel === 'decaimiento') {
+    const aj = graf.ajuste;
+    if (!aj) {
+      ctxGraf.fillStyle = 'rgba(148,163,184,.9)'; ctxGraf.font = '11px Inter, sans-serif';
+      ctxGraf.fillText('Se necesitan al menos 4 picos: ponga F₀ = 0 y déjelo oscilar.', gx0 + 6, gy0 - 40);
+    } else {
+      const picos = picosDecrecientes(sim.hist.map(h => [h[0], h[1]])).filter(v => v > 1e-6);
+      const ln = picos.map(Math.log);
+      const nMax = Math.max(2, ln.length - 1);
+      const lo = Math.min(...ln), hi = Math.max(...ln);
+      const X = (i) => gx0 + (gx1 - gx0) * (i / nMax);
+      const Y = (v) => gy0 - (gy0 - gy1) * ((v - lo) / Math.max(1e-9, hi - lo)) * 0.9 - (gy0 - gy1) * 0.05;
+      ctxGraf.fillStyle = '#ffd166'; ctxGraf.font = '10px ui-monospace, monospace';
+      for (let i = 0; i < ln.length; i++) {
+        ctxGraf.beginPath(); ctxGraf.arc(X(i), Y(ln[i]), 3, 0, Math.PI * 2); ctxGraf.fill();
+      }
+      ctxGraf.strokeStyle = 'rgba(0,242,254,.9)'; ctxGraf.lineWidth = 1.5;
+      ctxGraf.beginPath(); ctxGraf.moveTo(X(0), Y(aj.b)); ctxGraf.lineTo(X(nMax), Y(aj.b + aj.a * nMax)); ctxGraf.stroke();
+      ctxGraf.fillStyle = 'rgba(226,232,240,.9)';
+      ctxGraf.fillText(`ζ estimado de los datos = ${aj.zetaEst.toFixed(4)}`, gx0 + 6, gy0 - 26);
+      ctxGraf.fillText(`ζ del modelo c/(2√(km)) = ${aj.zetaTeo.toFixed(4)}`, gx0 + 6, gy0 - 12);
+      ctxGraf.fillStyle = Math.abs(aj.zetaEst - aj.zetaTeo) / Math.max(1e-9, aj.zetaTeo) < 0.15 ? '#4ade80' : '#f87171';
+      ctxGraf.fillText(`R² del ajuste exponencial = ${aj.r2.toFixed(4)}`, gx0 + 6, gy1 + 12);
+    }
+  }
+}
+
+function dibujar() { dibujarFenomeno(); dibujarGraficas(); }
+
+function actualizarPanel() {
+  const cl = clasificar(P.m, P.c, P.k);
+  const med = medir();
+  if (med) {
+    const disc = Math.abs(med.am - med.amod) / Math.max(1e-9, med.amod) * 100;
+    eAmed.textContent = med.am.toFixed(3);
+    eAmod.textContent = med.amod.toFixed(3);
+    eDisc.textContent = disc.toFixed(1) + '%';
+    tablaVerif.innerHTML =
+      `<tr><td>amplitud medida (fenómeno)</td><td>${med.am.toFixed(4)}</td></tr>` +
+      `<tr><td>amplitud del modelo</td><td>${med.amod.toFixed(4)}</td></tr>` +
+      `<tr><td>discrepancia relativa</td><td>${disc.toFixed(2)} %</td></tr>` +
+      `<tr><td>diferencia RMS</td><td>${med.rms.toFixed(4)}</td></tr>` +
+      `<tr><td>&omega;&#8320; del modelo</td><td>${cl.w0.toFixed(3)} rad/s</td></tr>`;
+  }
+  graf.ajuste = ajusteDecaimiento();
+  if (graf.ajuste) {
+    const dif = Math.abs(graf.ajuste.zetaEst - graf.ajuste.zetaTeo) / Math.max(1e-9, graf.ajuste.zetaTeo);
+    document.getElementById('textoAjuste').innerHTML =
+      `De los picos medidos: <b>&zeta; = ${graf.ajuste.zetaEst.toFixed(4)}</b>, ` +
+      `el modelo dice ${graf.ajuste.zetaTeo.toFixed(4)} ` +
+      `(<span class="${dif < 0.15 ? 'ok' : 'mal'}">${(dif * 100).toFixed(0)} % de diferencia</span>, ` +
+      `R² = ${graf.ajuste.r2.toFixed(3)}). Cambie a «Decaimiento y ajuste» para verlo.`;
+  }
+}
+
+function bucle() {
+  const sub = Math.max(1, Math.round(velocidad * 4));
+  for (let k = 0; k < sub; k++) avanzar(1 / 240);
+  dibujar();
+  actualizarPanel();
+  requestAnimationFrame(bucle);
+}
+
+/* ---------- controles ---------- */
+function sincronizarEtiquetas() {
+  const e = ETIQUETAS[P.fenomeno];
+  document.getElementById('lb1').textContent = e.f1;
+  document.getElementById('lb2').textContent = e.f2;
+  document.getElementById('lb3').textContent = e.f3;
+  document.getElementById('lb4').textContent = e.f4;
+  document.getElementById('lb6').textContent = e.f6;
+  document.getElementById('lb7').textContent = e.f7;
+}
+
+function leerControles() {
+  P.m = parseFloat(document.getElementById('r1').value);
+  P.c = parseFloat(document.getElementById('r2').value);
+  P.k = parseFloat(document.getElementById('r3').value);
+  P.F0 = parseFloat(document.getElementById('r4').value);
+  P.w = parseFloat(document.getElementById('r5').value);
+  P.x0 = parseFloat(document.getElementById('r6').value);
+  P.v0 = parseFloat(document.getElementById('r7').value);
+  document.getElementById('e1').textContent = P.m.toFixed(2);
+  document.getElementById('e2').textContent = P.c.toFixed(2);
+  document.getElementById('e3').textContent = P.k.toFixed(1);
+  document.getElementById('e4').textContent = P.F0.toFixed(2);
+  document.getElementById('e5').textContent = P.w.toFixed(2);
+  document.getElementById('e6').textContent = P.x0.toFixed(2);
+  document.getElementById('e7').textContent = P.v0.toFixed(2);
+}
+
+function fijar(m, c, k, F0, w) {
+  document.getElementById('r1').value = m;
+  document.getElementById('r2').value = c;
+  document.getElementById('r3').value = k;
+  if (F0 !== undefined) document.getElementById('r4').value = F0;
+  if (w !== undefined) document.getElementById('r5').value = w;
+  leerControles();
+  reiniciarSimulacion();
+  recalcular();
+}
+
+document.querySelectorAll('button[data-pre]').forEach(b => {
+  b.addEventListener('click', () => {
+    const m = parseFloat(document.getElementById('r1').value);
+    const k = parseFloat(document.getElementById('r3').value);
+    const cCritico = 2 * Math.sqrt(k * m);
+    if (b.dataset.pre === 'sub') fijar(m, 0.25 * cCritico, k);
+    if (b.dataset.pre === 'crit') fijar(m, cCritico, k);
+    if (b.dataset.pre === 'sobre') fijar(m, 2.4 * cCritico, k);
+    if (b.dataset.pre === 'res') {
+      const wr = frecuenciaResonancia(m, 0.25 * cCritico, k) || Math.sqrt(k / m);
+      fijar(m, 0.25 * cCritico, k, undefined, wr);
+    }
+  });
+});
+
+['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    leerControles();
+    reiniciarSimulacion();
+    recalcular();
+  });
+});
+
+selFenomeno.addEventListener('change', (e) => {
+  P.fenomeno = e.target.value;
+  sincronizarEtiquetas();
+  reiniciarSimulacion();
+  recalcular();
+});
+
+selEfecto.addEventListener('change', (e) => {
+  P.efecto = e.target.value;
+  reiniciarSimulacion();
+  recalcular();
+});
+
+btnExamen.addEventListener('click', () => {
+  const opciones = ['seco', 'no_lineal', 'cuadratica'];
+  P.efecto = opciones[Math.floor(Math.random() * opciones.length)];
+  selEfecto.value = P.efecto;
+  selEfecto.disabled = true;
+  diagElegido = null;
+  textoDiag.innerHTML = 'Modo examen: el efecto está oculto. Observe y diagnostique.';
+  reiniciarSimulacion();
+  recalcular();
+});
+
+document.querySelectorAll('button[data-diag]').forEach(b => {
+  b.addEventListener('click', () => {
+    diagElegido = b.dataset.diag;
+    const acierto = diagElegido === P.efecto;
+    textoDiag.innerHTML = acierto
+      ? `<span class="ok">✔ Correcto: el efecto presente es ${textoEfecto(P.efecto)}.</span> ` +
+        `El clasificador numérico también lo detectó: ${sim.diag.evidencia}.`
+      : `<span class="mal">✘ No es ese.</span> Compare la curva del fenómeno con la del modelo: ` +
+        `discrepancia actual ${eDisc.textContent}. Pista metodológica: si el pico de resonancia se corre, ` +
+        `el problema está en la rigidez; si el decaimiento por ciclo es constante, hay rozamiento fijo; ` +
+        `si crece con la amplitud, el frenado es cuadrático.`;
+  });
+});
+
+btnReiniciar.addEventListener('click', () => { reiniciarSimulacion(); recalcular(); });
+
+/* ================= EXPORTACIÓN (XLSX propio y CSV, sin dependencias) ================= */
+const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const TABLA_CRC = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = TABLA_CRC[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+const utf8 = (texto) => new TextEncoder().encode(texto);
+function cuatroBytes(v) {
+  const a = new Uint8Array(4);
+  a[0] = v & 0xFF; a[1] = (v >>> 8) & 0xFF; a[2] = (v >>> 16) & 0xFF; a[3] = (v >>> 24) & 0xFF;
+  return a;
+}
+function dosBytes(v) {
+  const a = new Uint8Array(2);
+  a[0] = v & 0xFF; a[1] = (v >>> 8) & 0xFF;
+  return a;
+}
+/* ZIP sin compresión (método «store»), que es lo que espera un .xlsx. */
+function zipStore(archivos) {
+  const partes = [];
+  const central = [];
+  let offset = 0;
+  for (const a of archivos) {
+    const nombre = utf8(a.nombre);
+    const crc = crc32(a.datos);
+    partes.push(cuatroBytes(0x04034b50), dosBytes(20), dosBytes(0), dosBytes(0), dosBytes(0), dosBytes(0),
+                cuatroBytes(crc), cuatroBytes(a.datos.length), cuatroBytes(a.datos.length),
+                dosBytes(nombre.length), dosBytes(0), nombre, a.datos);
+    central.push(cuatroBytes(0x02014b50), dosBytes(20), dosBytes(20), dosBytes(0), dosBytes(0), dosBytes(0),
+                  dosBytes(0), cuatroBytes(crc), cuatroBytes(a.datos.length), cuatroBytes(a.datos.length),
+                  dosBytes(nombre.length), dosBytes(0), dosBytes(0), dosBytes(0), dosBytes(0),
+                  cuatroBytes(0), cuatroBytes(offset), nombre);
+    offset += 30 + nombre.length + a.datos.length;
+  }
+  const tamCentral = central.reduce((s, p) => s + p.length, 0);
+  partes.push(...central,
+    cuatroBytes(0x06054b50), dosBytes(0), dosBytes(0), dosBytes(archivos.length), dosBytes(archivos.length),
+    cuatroBytes(tamCentral), cuatroBytes(offset), dosBytes(0));
+  return new Blob(partes, { type: MIME_XLSX });
+}
+function letraColumna(n) {
+  let s = '';
+  n += 1;
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+function formatoNumero(v) {
+  if (!Number.isFinite(v)) return '';
+  const a = Math.abs(v);
+  if (a === 0) return '0';
+  if (a < 1e-4 || a >= 1e15) return v.toFixed(12);
+  return String(Number(v.toPrecision(12)));
+}
+function xmlHoja(filas) {
+  let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+  filas.forEach((fila, f) => {
+    x += `<row r="${f + 1}">`;
+    fila.forEach((valor, c) => {
+      const ref = letraColumna(c) + (f + 1);
+      const estilo = f === 0 ? ' s="1"' : '';
+      if (typeof valor === 'number' && Number.isFinite(valor)) {
+        x += `<c r="${ref}"${estilo}><v>${formatoNumero(valor)}</v></c>`;
+      } else {
+        const txt = String(valor === null || valor === undefined ? '' : valor)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        x += `<c r="${ref}" t="inlineStr"${estilo}><is><t>${txt}</t></is></c>`;
+      }
+    });
+    x += '</row>';
+  });
+  return x + '</sheetData></worksheet>';
+}
+const ESTILOS_XLSX = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+  '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+  '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>' +
+  '<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+  '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>' +
+  '<borders count="1"><border/></borders>' +
+  '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+  '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+  '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>' +
+  '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+  '</styleSheet>';
+function construirXLSX(hojas) {
+  const limpiar = (s) => String(s).replace(/[\\\/\?\*\[\]:]/g, ' ').slice(0, 31);
+  const partes = [];
+  let ct = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>';
+  hojas.forEach((h, i) => {
+    ct += `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`;
+  });
+  partes.push({ nombre: '[Content_Types].xml', datos: utf8(ct + '</Types>') });
+  partes.push({ nombre: '_rels/.rels', datos: utf8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+    '</Relationships>') });
+  let wb = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>';
+  hojas.forEach((h, i) => { wb += `<sheet name="${limpiar(h.nombre)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`; });
+  partes.push({ nombre: 'xl/workbook.xml', datos: utf8(wb + '</sheets></workbook>') });
+  let rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+  hojas.forEach((h, i) => {
+    rels += `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`;
+  });
+  rels += `<Relationship Id="rId${hojas.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  partes.push({ nombre: 'xl/_rels/workbook.xml.rels', datos: utf8(rels) });
+  hojas.forEach((h, i) => partes.push({ nombre: `xl/worksheets/sheet${i + 1}.xml`, datos: utf8(xmlHoja(h.filas)) }));
+  partes.push({ nombre: 'xl/styles.xml', datos: utf8(ESTILOS_XLSX) });
+  return zipStore(partes);
+}
+
+function nombreArchivo(ext) {
+  const f = P.fenomeno === 'resorte' ? 'resorte' : 'rlc';
+  const e = P.efecto === 'ninguno' ? 'lineal' : P.efecto;
+  return `lab-ode-02-${f}-${e}.${ext}`;
+}
+function descargar(nombre, blob) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+const r6 = (v) => Math.round(v * 1e6) / 1e6;
+
+function hojasDeDatos() {
+  const cl = clasificar(P.m, P.c, P.k);
+  const amp = amplitudEstacionaria(P.m, P.c, P.k, P.F0, P.w);
+  const wr = frecuenciaResonancia(P.m, P.c, P.k);
+  const med = medir() || { am: 0, amod: 0, rms: 0 };
+  const esResorte = P.fenomeno === 'resorte';
+  const delFen = esResorte ? 'x fenomeno (m)' : 'q fenomeno (mC)';
+  const delMod = esResorte ? 'x modelo (m)' : 'q modelo (mC)';
+
+  const datos = [[
+    't (s)', delFen, delMod, 'diferencia (fen - mod)',
+    esResorte ? 'v fenomeno (m/s)' : 'i fenomeno (mA)',
+    esResorte ? 'v modelo (m/s)' : 'i modelo (mA)',
+    esResorte ? 'E mecanica (J)' : 'energia (u.a.)',
+    esResorte ? 'F(t) (N)' : 'V(t) (V)'
+  ]];
+  for (const [t, xf, vf, xm, vm] of sim.hist) {
+    const energia = 0.5 * P.m * vf * vf + 0.5 * P.k * xf * xf;
+    datos.push([r6(t), r6(xf), r6(xm), r6(xf - xm), r6(vf), r6(vm), r6(energia),
+                r6(P.F0 * Math.cos(P.w * t))]);
+  }
+
+  const parametros = [['parametro', 'valor', 'unidad', 'simbolo del modelo'],
+    ['masa / inductancia', P.m, esResorte ? 'kg' : 'H', 'm'],
+    ['amortiguamiento / resistencia', P.c, esResorte ? 'N·s/m' : 'Ω', 'c'],
+    ['rigidez / elastancia', P.k, esResorte ? 'N/m' : '1/F', 'k'],
+    ['fuerza / tension', P.F0, esResorte ? 'N' : 'V', 'F0'],
+    ['frecuencia de excitacion', P.w, 'rad/s', 'w'],
+    ['condicion inicial de posicion / carga', P.x0, esResorte ? 'm' : 'mC', 'x0'],
+    ['condicion inicial de velocidad / corriente', P.v0, esResorte ? 'm/s' : 'mA', 'v0'],
+    ['fenomeno', esResorte ? 'resorte-masa-amortiguador' : 'circuito RLC serie', '', ''],
+    ['efecto no modelado presente', P.efecto, '', ''],
+    ['omega0', r6(cl.w0), 'rad/s', 'sqrt(k/m)'],
+    ['zeta', r6(cl.zeta), '', 'c/(2 sqrt(km))'],
+    ['regimen', cl.regimen, '', ''],
+    ['omega de resonancia', wr === null ? 'no hay pico' : r6(wr), 'rad/s', 'w0 sqrt(1-2 zeta^2)'],
+    ['amplitud teorica en w', Number.isFinite(amp.A) ? r6(amp.A) : '', '', 'A(w)'],
+    ['desfase teorico', r6(amp.fase), 'rad', 'phi']];
+
+  const metricas = [['metrica', 'valor', 'unidad'],
+    ['amplitud medida (fenomeno)', r6(med.am), esResorte ? 'm' : 'mC'],
+    ['amplitud del modelo', r6(med.amod), esResorte ? 'm' : 'mC'],
+    ['discrepancia relativa', r6(Math.abs(med.am - med.amod) / Math.max(1e-9, med.amod) * 100), '%'],
+    ['diferencia RMS', r6(med.rms), esResorte ? 'm' : 'mC'],
+    ['muestras exportadas', sim.hist.length, ''],
+    ['veredicto del clasificador', sim.diag ? sim.diag.efecto : '', ''],
+    ['evidencia del clasificador', sim.diag ? sim.diag.evidencia : '', '']];
+
+  const resonancia = [['omega (rad/s)', 'amplitud medida en el fenomeno', 'amplitud del modelo lineal', 'diferencia']];
+  for (const b of sim.barrido) {
+    const teo = amplitudEstacionaria(P.m, P.c, P.k, P.F0, b.w).A;
+    const t = Number.isFinite(teo) ? r6(teo) : '';
+    resonancia.push([r6(b.w), r6(b.A), t, t === '' ? '' : r6(b.A - t)]);
+  }
+
+  return [{ nombre: 'Datos', filas: datos }, { nombre: 'Parametros', filas: parametros },
+          { nombre: 'Metricas', filas: metricas }, { nombre: 'Resonancia', filas: resonancia }];
+}
+
+function exportarCSV() {
+  const sep = ';';   // Excel en español
+  const lineas = [];
+  for (const hoja of hojasDeDatos()) {
+    lineas.push(`# ${hoja.nombre}`);
+    for (const fila of hoja.filas) {
+      lineas.push(fila.map(v => typeof v === 'number' ? String(v).replace('.', ',') : String(v)).join(sep));
+    }
+    lineas.push('');
+  }
+  const blob = new Blob(['\uFEFF' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  descargar(nombreArchivo('csv'), blob);
+  document.getElementById('estadoExport').innerHTML =
+    'CSV descargado (separador «;» y coma decimal, listo para Excel en español).';
+}
+
+document.getElementById('btnXLSX').addEventListener('click', () => {
+  const blob = construirXLSX(hojasDeDatos());
+  descargar(nombreArchivo('xlsx'), blob);
+  document.getElementById('estadoExport').innerHTML =
+    'Excel descargado con cuatro hojas: Datos, Parametros, Metricas y Resonancia.';
+});
+document.getElementById('btnCSV').addEventListener('click', exportarCSV);
+
+/* ================= interacción con las gráficas ================= */
+['gFen', 'gMod', 'gVel', 'gDif', 'gPicos'].forEach((id) => {
+  const el = document.getElementById(id);
+  el.addEventListener('change', () => {
+    graf.verFen = document.getElementById('gFen').checked;
+    graf.verMod = document.getElementById('gMod').checked;
+    graf.verVel = document.getElementById('gVel').checked;
+    graf.verDif = document.getElementById('gDif').checked;
+    graf.verPicos = document.getElementById('gPicos').checked;
+    dibujar();
+  });
+});
+
+document.querySelectorAll('button[data-panel]').forEach((b) => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('button[data-panel]').forEach(o => o.classList.remove('activo'));
+    b.classList.add('activo');
+    graf.panel = b.dataset.panel;
+    dibujar();
+  });
+});
+
+cGraf.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  graf.zoom = Math.max(1, Math.min(40, graf.zoom * (e.deltaY > 0 ? 1 / 1.15 : 1.15)));
+  dibujar();
+}, { passive: false });
+
+cGraf.addEventListener('pointerdown', (e) => {
+  graf.arrastrando = true;
+  graf.ultimoX = e.clientX;
+  cGraf.setPointerCapture(e.pointerId);
+});
+cGraf.addEventListener('pointermove', (e) => {
+  const r = cGraf.getBoundingClientRect();
+  if (graf.arrastrando) {
+    const ancho = Math.max(1, r.width * 0.585 - 62);
+    graf.cx = Math.max(0, Math.min(1, graf.cx - (e.clientX - graf.ultimoX) / ancho / graf.zoom));
+    graf.ultimoX = e.clientX;
+  } else {
+    const { ta, tb } = ventanaTiempo();
+    const xIzq = 46, xDer = r.width * 0.585 - 16;
+    const frac = (e.clientX - r.left - xIzq) / Math.max(1, xDer - xIzq);
+    graf.cursor = frac >= 0 && frac <= 1 ? ta + frac * (tb - ta) : null;
+  }
+  dibujar();
+});
+cGraf.addEventListener('pointerup', () => { graf.arrastrando = false; });
+cGraf.addEventListener('pointerleave', () => { graf.arrastrando = false; graf.cursor = null; dibujar(); });
+
+function exportarPNG(cv, ctx, nombre) {
+  const r = cv.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const copia = document.createElement('canvas');
+  copia.width = cv.width; copia.height = cv.height;
+  const c2 = copia.getContext('2d');
+  c2.fillStyle = '#050814';
+  c2.fillRect(0, 0, copia.width, copia.height);
+  c2.drawImage(cv, 0, 0);
+  c2.setTransform(1, 0, 0, 1, 0, 0);
+  c2.fillStyle = 'rgba(226,232,240,.9)';
+  c2.font = `${13 * dpr}px Inter, sans-serif`;
+  c2.fillText(nombre, 12 * dpr, copia.height - 12 * dpr);
+  copia.toBlob((blob) => {
+    if (blob) descargar(nombre.replace(/[^\w\-]+/g, '-').toLowerCase() + '.png', blob);
+  }, 'image/png');
+}
+document.getElementById('btnPNGgraf').addEventListener('click', () => {
+  exportarPNG(cGraf, ctxGraf, `Lab ODE 02 · ${P.fenomeno === 'resorte' ? 'resorte' : 'RLC'} · ${graf.panel}`);
+});
+document.getElementById('btnPNGfen').addEventListener('click', () => {
+  exportarPNG(cFen, ctxFen, `Lab ODE 02 · fenómeno · ${P.fenomeno === 'resorte' ? 'resorte' : 'RLC'}`);
+});
+
+ajustarTodo();
+sincronizarEtiquetas();
+leerControles();
+reiniciarSimulacion();
+recalcular();
+bucle();
+</script>
+</body>
+</html>
