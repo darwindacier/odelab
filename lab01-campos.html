@@ -79,6 +79,7 @@ h1{
 #cvGraf{flex:1}
 .vistas .vista + .vista{border-top:1px solid var(--borde)}
 canvas{display:block; width:100%; height:100%}
+#cv{cursor:crosshair; touch-action:none}
 .lienzo{flex:1; position:relative; overflow:hidden; background:#04070f}
 
 /* ---------- panel lateral ---------- */
@@ -360,7 +361,8 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
     <canvas id="cv"></canvas>
     <div class="pista" id="pista">
       Haga clic en el lienzo para lanzar una curva solución desde ese punto (se integra hacia
-      adelante y hacia atrás). Rueda del ratón: acercar. Arrastrar: desplazar la vista.
+      adelante y hacia atrás). La línea de puntos violeta anticipa la curva. Rueda: acercar ·
+      arrastrar: desplazar la vista.
     </div>
   </div>
 
@@ -881,7 +883,7 @@ let vista = { cx: 0, cy: 0, ancho: 8 };
 let metodo = 'rk4';
 let h = 0.2;
 let k = 0;
-let arrastrando = false, ultimo = null, inicio = null, lectura = null;
+let arrastrando = false, ultimo = null, inicio = null, lectura = null, previa = null, redibujo = false;
 
 const COLORES = ['#00f2fe', '#ffd166', '#4ade80', '#f472b6', '#a78bfa', '#fb923c', '#38bdf8'];
 
@@ -992,6 +994,23 @@ function dibujar() {
       ctx.lineTo(p.x + ux * largo / 2, p.y + uy * largo / 2);
       ctx.stroke();
     }
+  }
+
+  // Vista previa: la solución que pasaría por el puntero si se hace clic
+  if (previa && !arrastrando) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(167,139,250,.85)'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.setLineDash([0.5, 5]);
+    ctx.beginPath();
+    previa.forEach(([x, y], i) => {
+      const p = pantallaDesdeMundo(x, y);
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const p0 = pantallaDesdeMundo(lectura.x, lectura.y);
+    ctx.strokeStyle = 'rgba(167,139,250,.95)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(p0.x, p0.y, 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
   }
 
   // Curvas del usuario
@@ -1194,8 +1213,22 @@ function aplicarExpresion(texto, exacta, invariante) {
 btnAplicar.addEventListener('click', () => aplicarExpresion(txtF.value, null, null));
 txtF.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnAplicar.click(); });
 
+/* Un cuadro de dibujo por cuadro de pantalla, aunque lleguen muchos movimientos del puntero. */
+function pedirDibujo() {
+  if (redibujo) return;
+  redibujo = true;
+  requestAnimationFrame(() => { redibujo = false; dibujar(); });
+}
+/* Solución por (x0, y0), integrada hacia adelante y hacia atrás hasta los bordes de la vista. */
+function curvaPor(x0, y0) {
+  const xmin = vista.cx - vista.ancho / 2, xmax = vista.cx + vista.ancho / 2;
+  const paso = vista.ancho / 500;
+  const adelante = integrar(f, x0, y0, xmax, paso, 'rk4');
+  const atras = integrar(f, x0, y0, xmin, paso, 'rk4');
+  return atras.slice(1).reverse().concat(adelante);
+}
 cv.addEventListener('pointerdown', (e) => {
-  inicio = { x: e.clientX, y: e.clientY };
+  inicio = { x: e.clientX, y: e.clientY, t: performance.now() };
   ultimo = { x: e.clientX, y: e.clientY };
   arrastrando = e.shiftKey;
   cv.setPointerCapture(e.pointerId);
@@ -1203,40 +1236,46 @@ cv.addEventListener('pointerdown', (e) => {
 function lanzarCurva(e) {
   const r = cv.getBoundingClientRect();
   const m = mundoDesdePantalla(e.clientX - r.left, e.clientY - r.top);
-  const [ymin, ymax] = rangoY();
-  const xmin = vista.cx - vista.ancho / 2, xmax = vista.cx + vista.ancho / 2;
-  const paso = vista.ancho / 500;
-  const adelante = integrar(f, m.x, m.y, xmax, paso, 'rk4');
-  const atras = integrar(f, m.x, m.y, xmin, paso, 'rk4');
-  const pts = atras.slice(1).reverse().concat(adelante);
+  const xmax = vista.cx + vista.ancho / 2;
+  const pts = curvaPor(m.x, m.y);
   curvas.push({ x0: m.x, y0: m.y, x1: xmax, pts, exacta: exactaActual, invariante: invarianteActual });
   if (curvas.length > 7) curvas.shift();
   eCurvas.textContent = String(curvas.length);
+  previa = null;
   comparar();
   dibujar();
 }
 cv.addEventListener('pointermove', (e) => {
   const r = cv.getBoundingClientRect();
-  if (inicio && !arrastrando && Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y) > 5) arrastrando = true;
+  if (inicio && !arrastrando) {
+    // un clic con un temblor del ratón o del touchpad sigue siendo clic; solo un movimiento claro es arrastre
+    const d = Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y);
+    if (d > 14 || (d > 6 && performance.now() - inicio.t > 250)) arrastrando = true;
+  }
   if (!arrastrando || !ultimo) {
     lectura = mundoDesdePantalla(e.clientX - r.left, e.clientY - r.top);
-    dibujar();
+    if (!inicio && e.pointerType !== 'touch') {
+      try { previa = curvaPor(lectura.x, lectura.y); } catch (err) { previa = null; }
+    }
+    pedirDibujo();
     return;
   }
+  previa = null;
   cv.style.cursor = 'grabbing';
   const escala = r.width / vista.ancho;
   vista.cx -= (e.clientX - ultimo.x) / escala;
   vista.cy += (e.clientY - ultimo.y) / escala;
   ultimo = { x: e.clientX, y: e.clientY };
-  dibujar();
+  pedirDibujo();
 });
-cv.addEventListener('pointerup', (e) => {
-  if (inicio && !arrastrando) lanzarCurva(e);
+cv.addEventListener('pointerup', () => {
+  // la curva sale del punto donde se presionó, no de donde se soltó
+  if (inicio && !arrastrando) lanzarCurva({ clientX: inicio.x, clientY: inicio.y });
   arrastrando = false; ultimo = null; inicio = null;
   cv.style.cursor = 'crosshair';
 });
 cv.addEventListener('pointercancel', () => { arrastrando = false; ultimo = null; inicio = null; });
-cv.addEventListener('pointerleave', () => { if (!inicio) { lectura = null; dibujar(); } });
+cv.addEventListener('pointerleave', () => { if (!inicio) { lectura = null; previa = null; dibujar(); } });
 cv.addEventListener('wheel', (e) => {
   e.preventDefault();
   const r = cv.getBoundingClientRect();
