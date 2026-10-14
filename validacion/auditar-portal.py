@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-BASE = Path(r"C:\Users\Darwin\Desktop\odelab")
+BASE = Path(__file__).resolve().parent.parent
 texto = (BASE / "index.html").read_text(encoding="utf-8")
 script = re.search(r"<script>(.*)</script>", texto, re.S).group(1)
 

@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-BASE = Path(r"C:\Users\Darwin\Desktop\odelab")
-TMP = Path(r"C:\Users\Darwin\Desktop\_val_ode")
-NODE = r"C:\Users\Darwin\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe"
+BASE = Path(__file__).resolve().parent.parent
+TMP = Path(__file__).resolve().parent / "_tmp"
+NODE = shutil.which("node") or sys.exit("No se encontró node en el PATH")
 LABS = ["lab01-campos.html", "lab02-resorte-rlc.html", "lab03-tanque-newton-rc.html"]
 
 TMP.mkdir(exist_ok=True)

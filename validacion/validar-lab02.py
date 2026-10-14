@@ -2,13 +2,14 @@ r"""Valida el laboratorio 02: modelo, clasificador y el archivo .xlsx exportado.
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 HTML = Path(__file__).resolve().parent.parent / "lab02-resorte-rlc.html"
 TMP = Path(__file__).resolve().parent / "_tmp"
-NODE = r"C:\Users\Darwin\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe"
+NODE = shutil.which("node") or sys.exit("No se encontró node en el PATH")
 XLSX = TMP / "exportado.xlsx"
 
 script = re.search(r"<script>(.*)</script>", HTML.read_text(encoding="utf-8"), re.S).group(1)

@@ -54,12 +54,17 @@ lunes festivos o como material de estudio antes del examen.
 - **Comparadores visuales** de barras entre el valor medido y el del modelo.
 - **Avisos emergentes** al exportar, al pausar y al superar un reto.
 - **Atajos:** `espacio` pausa, `R` reinicia, `P` pliega el panel, `G` guarda el PNG, `Esc` cierra la guía.
+- **Gráficas con ejes reales:** marcas numeradas, cuadrícula, unidades, leyenda y recuadros de lectura.
+  Rueda: zoom anclado al puntero · arrastrar: desplazar · doble clic: vista completa.
+- **Campo de direcciones:** clic lanza una curva, arrastrar desplaza la vista (también en pantallas táctiles)
+  y el puntero muestra `x`, `y` y la pendiente `f(x, y)`.
 - Diseño adaptable: en pantallas estrechas las gráficas y el panel se apilan.
 
 ## Verificación técnica
 
 Antes de publicar, cada laboratorio pasa una batería de aserciones numéricas ejecutada con Node
-(por ejemplo, que la solución analítica coincida con la integración numérica, que el orden empírico
+(los scripts de `validacion/` buscan `node` en el PATH y se pueden ejecutar desde cualquier carpeta;
+por ejemplo, que la solución analítica coincida con la integración numérica, que el orden empírico
 de cada método sea el teórico, que la energía se conserve sin amortiguamiento y que el clasificador
 identifique correctamente los cuatro casos). El archivo `.xlsx` exportado se abre y se revisa con
 openpyxl y con el verificador estructural de paquetes Office.

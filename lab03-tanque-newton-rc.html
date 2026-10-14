@@ -296,6 +296,22 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
   .chips{width:100%}
   .chip{flex:1}
   .pista{max-width:88%; font-size:.72rem}
+  .lienzo{flex:0 0 auto; height:68vh; min-height:380px}
+  .marca-lab{flex-wrap:wrap; row-gap:8px}
+  .formula{font-size:.85rem; max-width:100%; overflow-x:auto}
+}
+@media (max-width:620px){
+  .sub-lab{display:none}
+  h1{font-size:.9rem}
+  .chips{gap:5px}
+  .chip{min-width:0; padding:4px 8px}
+  .chip span{font-size:.56rem}
+  .chip b{font-size:.76rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .chips{display:grid; grid-template-columns:repeat(3,minmax(0,1fr))}
+  .marca-lab > div{flex:1 1 180px; min-width:0}
+  .vistas{flex:0 0 auto; min-height:0}
+  #cvFen{flex:0 0 auto; height:340px}
+  #cvGraf{flex:0 0 auto; height:600px}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s !important; transition-duration:.001s !important}
@@ -448,6 +464,35 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
       </div>
     </div>
   </aside>
+</div>
+
+<div class="avisos" id="avisos"></div>
+
+<div class="bienvenida oculto" id="bienvenida">
+  <div class="caja">
+    <h3>Laboratorio 03 · Tanque, enfriamiento y circuito RC</h3>
+    <p>
+      Tres fenómenos distintos que obedecen la misma ecuación de primer orden. Elija uno, mueva sus
+      parámetros y compruebe si la ecuación afín explica lo que se mide; cuando no, hay que
+      descubrir qué supuesto falta.
+    </p>
+    <div class="pasos">
+      <div class="paso"><b>1 · Elija el fenómeno</b>
+        <span>Tanque con entrada y salida, taza que se enfría o capacitor que se carga. Las
+        etiquetas cambian; el modelo es el mismo.</span></div>
+      <div class="paso"><b>2 · Mida el tiempo característico</b>
+        <span>El panel «Ajuste de τ» y la gráfica semilogarítmica estiman τ con sus datos: compárelo
+        con V/Q, 1/k o RC.</span></div>
+      <div class="paso"><b>3 · Diagnostique</b>
+        <span>Fuga, degradación, aporte, radiación o resistencia extra: el valor final y el
+        decaimiento lo delatan.</span></div>
+    </div>
+    <div class="fila">
+      <button id="btnEmpezar" class="activo">Empezar el laboratorio</button>
+      <button id="btnNoVer" class="mini" style="flex:0 0 auto">No volver a mostrarla</button>
+    </div>
+    <div class="atajos">Atajos: espacio = pausar · R = reiniciar · P = panel · G = guardar gráficas · Esc = cerrar</div>
+  </div>
 </div>
 
 <script>
@@ -767,6 +812,229 @@ function diagnosticar(P) {
 }
 /* ==== MATH:END ==== */
 
+/* ==== GRAF:BEGIN ==== ejes, cuadrícula, leyendas y geometría comunes a las gráficas */
+const FUENTE = "'Segoe UI', Inter, system-ui, -apple-system, sans-serif";
+const MONO = 'ui-monospace, SFMono-Regular, Consolas, monospace';
+const TINTA = {
+  fen: '#ffd166', mod: '#22d3ee', dif: '#f87171', vel: '#4ade80', ref: 'rgba(226,232,240,.6)',
+  eje: 'rgba(148,163,184,.5)', reja: 'rgba(148,163,184,.09)', cero: 'rgba(148,163,184,.3)',
+  texto: 'rgba(203,213,225,.88)', tenue: 'rgba(148,163,184,.75)', titulo: '#e8eef8'
+};
+
+/* Geometría única de las dos gráficas: la usan el dibujo y el ratón. */
+function cajasGraficas(W, H) {
+  if (W < 620) {
+    // pantalla estrecha: una gráfica sobre la otra, con la leyenda en su propio renglón
+    const mitad = Math.round(H / 2);
+    return {
+      izq: { x0: 50, x1: W - 14, y1: 60, y0: mitad - 32, tituloY: 22, leyendaY: 44 },
+      der: { x0: 50, x1: W - 14, y1: mitad + 58, y0: H - 30, tituloY: mitad + 20, leyendaY: mitad + 42 }
+    };
+  }
+  const corte = Math.round(W * 0.585);
+  return {
+    izq: { x0: 56, x1: corte - 18, y1: 40, y0: H - 30, tituloY: 24, leyendaY: 20 },
+    der: { x0: corte + 50, x1: W - 16, y1: 40, y0: H - 30, tituloY: 24, leyendaY: 20 }
+  };
+}
+
+function pasoBonito(rango, n) {
+  const bruto = rango / Math.max(1, n);
+  const p = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const f = bruto / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+function marcasEje(a, b, n) {
+  if (!(b > a) || !Number.isFinite(a) || !Number.isFinite(b)) return { vals: [], paso: 1 };
+  const paso = pasoBonito(b - a, n), vals = [];
+  for (let v = Math.ceil(a / paso - 1e-9) * paso; v <= b + paso * 1e-9 && vals.length < 40; v += paso) {
+    vals.push(Math.abs(v) < paso * 1e-9 ? 0 : v);
+  }
+  return { vals, paso };
+}
+function textoMarca(v, paso) {
+  if (v !== 0 && (Math.abs(v) >= 1e5 || Math.abs(v) < 1e-3)) return v.toExponential(1).replace('-', '−');
+  const dec = Math.max(0, Math.min(6, -Math.floor(Math.log10(paso) + 1e-9)));
+  return v.toFixed(dec).replace('-', '−');
+}
+/* Rango con margen; nunca degenerado. */
+function rangoCon(lo, hi, margen = 0.08) {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [0, 1];
+  if (hi - lo < 1e-12) { const d = Math.max(Math.abs(hi) * 0.1, 1e-3); return [lo - d, hi + d]; }
+  const d = (hi - lo) * margen;
+  return [lo - d, hi + d];
+}
+
+/* Dibuja el marco (cuadrícula, ejes, números, títulos) y devuelve las escalas X(v), Y(v). */
+function marcoGrafica(ctx, c, rx, ry, opc = {}) {
+  const X = v => c.x0 + (c.x1 - c.x0) * (v - rx[0]) / Math.max(1e-12, rx[1] - rx[0]);
+  const Y = v => c.y0 - (c.y0 - c.y1) * (v - ry[0]) / Math.max(1e-12, ry[1] - ry[0]);
+  const mx = marcasEje(rx[0], rx[1], Math.max(2, Math.floor((c.x1 - c.x0) / 78)));
+  const my = opc.sinNumerosY ? { vals: [], paso: 1 } : marcasEje(ry[0], ry[1], Math.max(2, Math.floor((c.y0 - c.y1) / 40)));
+  ctx.save();
+  ctx.fillStyle = 'rgba(148,163,184,.025)';
+  ctx.fillRect(c.x0, c.y1, c.x1 - c.x0, c.y0 - c.y1);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = TINTA.reja;
+  ctx.beginPath();
+  for (const v of mx.vals) { const x = Math.round(X(v)) + 0.5; ctx.moveTo(x, c.y1); ctx.lineTo(x, c.y0); }
+  for (const v of my.vals) { const y = Math.round(Y(v)) + 0.5; ctx.moveTo(c.x0, y); ctx.lineTo(c.x1, y); }
+  ctx.stroke();
+  if (ry[0] < 0 && ry[1] > 0) {
+    const y = Math.round(Y(0)) + 0.5;
+    ctx.strokeStyle = TINTA.cero; ctx.beginPath(); ctx.moveTo(c.x0, y); ctx.lineTo(c.x1, y); ctx.stroke();
+  }
+  ctx.strokeStyle = TINTA.eje;
+  ctx.beginPath();
+  ctx.moveTo(c.x0 + 0.5, c.y1); ctx.lineTo(c.x0 + 0.5, c.y0 + 0.5); ctx.lineTo(c.x1, c.y0 + 0.5);
+  for (const v of mx.vals) { const x = Math.round(X(v)) + 0.5; ctx.moveTo(x, c.y0); ctx.lineTo(x, c.y0 + 4); }
+  for (const v of my.vals) { const y = Math.round(Y(v)) + 0.5; ctx.moveTo(c.x0 - 4, y); ctx.lineTo(c.x0, y); }
+  ctx.stroke();
+  // el título del eje x ocupa el extremo derecho de la fila de números; los que chocarían se omiten
+  ctx.font = `italic 11px ${FUENTE}`;
+  const anchoEjeX = opc.ejeX ? ctx.measureText(opc.ejeX).width + 10 : 0;
+  ctx.fillStyle = TINTA.texto; ctx.textBaseline = 'top';
+  if (opc.ejeX) { ctx.textAlign = 'right'; ctx.fillText(opc.ejeX, c.x1, c.y0 + 7); }
+  if (opc.ejeY) { ctx.textAlign = 'left'; ctx.fillText(opc.ejeY, c.x0 + 7, c.y1 + 6); }
+  ctx.fillStyle = TINTA.tenue; ctx.font = `10px ${MONO}`;
+  ctx.textAlign = 'center';
+  for (const v of mx.vals) {
+    const s = textoMarca(v, mx.paso), x = X(v), w = ctx.measureText(s).width;
+    if (x + w / 2 > c.x1 - anchoEjeX || x - w / 2 < c.x0 - 22) continue;
+    ctx.fillText(s, x, c.y0 + 7);
+  }
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const v of my.vals) {
+    const y = Y(v);
+    if (y > c.y0 - 6 && mx.vals.length && Math.abs(X(mx.vals[0]) - c.x0) < 14) continue;
+    ctx.fillText(textoMarca(v, my.paso), c.x0 - 7, y);
+  }
+  if (opc.titulo) {
+    ctx.font = `600 12.5px ${FUENTE}`; ctx.fillStyle = TINTA.titulo;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(opc.titulo, Math.max(12, c.x0 - 40), c.tituloY);
+  }
+  ctx.restore();
+  return { X, Y };
+}
+
+/* Recorta el dibujo a la caja de la gráfica; devolver con ctx.restore(). */
+function recortar(ctx, c) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(c.x0 + 1, c.y1, c.x1 - c.x0 - 1, c.y0 - c.y1); ctx.clip();
+}
+
+/* Polilínea de una serie; f devuelve [x, y] en píxeles. */
+function trazarSerie(ctx, datos, f, color, ancho, linea) {
+  if (!datos.length) return;
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = ancho; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  if (linea) ctx.setLineDash(linea);
+  ctx.beginPath();
+  datos.forEach((d, i) => { const [x, y] = f(d); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+  ctx.stroke();
+  ctx.restore();
+}
+
+function punto(ctx, x, y, r, color, borde) {
+  ctx.save();
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  if (borde) { ctx.strokeStyle = borde; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.restore();
+}
+
+/* Leyenda en una fila, alineada a la derecha de xDer sobre la línea base y. */
+function leyenda(ctx, items, xDer, y) {
+  ctx.save();
+  ctx.font = `11px ${FUENTE}`; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  let x = xDer;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    x -= ctx.measureText(it.texto).width;
+    ctx.fillStyle = TINTA.texto; ctx.fillText(it.texto, x, y);
+    x -= 22;
+    if (it.punto) punto(ctx, x + 9, y, 3.5, it.color);
+    else {
+      ctx.strokeStyle = it.color; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+      ctx.setLineDash(it.linea || []);
+      ctx.beginPath(); ctx.moveTo(x + 1, y); ctx.lineTo(x + 17, y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    x -= 14;
+  }
+  ctx.restore();
+}
+
+/* Recuadro con filas de texto coloreadas (lectura del cursor, resultados de ajustes). */
+function recuadro(ctx, filas, x, y, xMax, alinearDerecha) {
+  ctx.save();
+  ctx.font = `11px ${MONO}`;
+  const ancho = Math.max(...filas.map(f => ctx.measureText(f.texto).width)) + 20;
+  const alto = filas.length * 16 + 10;
+  const bx = alinearDerecha ? x - ancho : Math.min(x, xMax - ancho);
+  ctx.fillStyle = 'rgba(7,11,24,.93)'; ctx.strokeStyle = 'rgba(148,163,184,.3)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx + 0.5, y + 0.5, ancho, alto, 7); else ctx.rect(bx + 0.5, y + 0.5, ancho, alto);
+  ctx.fill(); ctx.stroke();
+  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  filas.forEach((f, i) => { ctx.fillStyle = f.color || TINTA.texto; ctx.fillText(f.texto, bx + 10, y + 7 + i * 16); });
+  ctx.restore();
+}
+
+/* Mensaje centrado en una caja vacía. */
+function mensajeVacio(ctx, c, texto) {
+  ctx.save();
+  ctx.font = `12px ${FUENTE}`; ctx.fillStyle = TINTA.tenue; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(texto, (c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2);
+  ctx.restore();
+}
+
+/* Interacción común: rueda = zoom anclado al puntero, arrastre = desplazar, doble clic = vista completa. */
+function instalarInteraccion(cv, graf, ventana, redibujar) {
+  const cajaIzq = () => { const r = cv.getBoundingClientRect(); return { r, c: cajasGraficas(r.width, r.height).izq }; };
+  cv.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const { r, c } = cajaIzq();
+    const { ta, tb } = ventana();
+    const frac = Math.max(0, Math.min(1, (e.clientX - r.left - c.x0) / Math.max(1, c.x1 - c.x0)));
+    const tAncla = ta + frac * (tb - ta);
+    graf.zoom = Math.max(1, Math.min(40, graf.zoom * (e.deltaY > 0 ? 1 / 1.15 : 1.15)));
+    // el instante que estaba bajo el puntero sigue bajo el puntero
+    if (sim.hist.length > 1) {
+      const t0 = sim.hist[0][0], total = Math.max(1e-9, sim.hist[sim.hist.length - 1][0] - t0);
+      const centro = tAncla + (0.5 - frac) * (total / graf.zoom);
+      graf.cx = Math.max(0, Math.min(1, (centro - t0) / total));
+    }
+    redibujar();
+  }, { passive: false });
+  cv.addEventListener('pointerdown', (e) => {
+    graf.arrastrando = true;
+    graf.ultimoX = e.clientX;
+    cv.setPointerCapture(e.pointerId);
+    cv.style.cursor = 'grabbing';
+  });
+  cv.addEventListener('pointermove', (e) => {
+    const { r, c } = cajaIzq();
+    if (graf.arrastrando) {
+      graf.cx = Math.max(0, Math.min(1, graf.cx - (e.clientX - graf.ultimoX) / Math.max(1, c.x1 - c.x0) / graf.zoom));
+      graf.ultimoX = e.clientX;
+    } else {
+      const { ta, tb } = ventana();
+      const fx = (e.clientX - r.left - c.x0) / Math.max(1, c.x1 - c.x0);
+      const fy = e.clientY - r.top;
+      graf.cursor = fx >= 0 && fx <= 1 && fy >= c.y1 && fy <= c.y0 ? ta + fx * (tb - ta) : null;
+      cv.style.cursor = graf.cursor === null ? 'default' : 'crosshair';
+    }
+    redibujar();
+  });
+  const soltar = () => { graf.arrastrando = false; cv.style.cursor = graf.cursor === null ? 'default' : 'crosshair'; };
+  cv.addEventListener('pointerup', soltar);
+  cv.addEventListener('pointercancel', soltar);
+  cv.addEventListener('pointerleave', () => { soltar(); graf.cursor = null; redibujar(); });
+  cv.addEventListener('dblclick', () => { graf.zoom = 1; graf.cx = 0.5; redibujar(); });
+}
+/* ==== GRAF:END ==== */
+
 /* ---------------- aplicación ---------------- */
 const P = { fenomeno: 'tanque', Q: 2, V0: 20, cin: 1, c0: 0,
             k: 0.05, Tenv: 20, T0: 90,
@@ -985,8 +1253,8 @@ function dibujarTanque(W, H) {
   ctxFen.fillStyle = 'rgba(226,232,240,.9)'; ctxFen.font = '13px ui-monospace, monospace';
   ctxFen.fillText(`V = ${V.toFixed(2)} L`, x0, yBot + 34);
   ctxFen.fillText(`c = ${c.toFixed(3)} g/L`, x0, yBot + 52);
-  ctxFen.fillStyle = 'rgba(148,163,184,.9)'; ctxFen.font = '12px Inter, sans-serif';
-  ctxFen.fillText(`entrada: Q = ${P.Q.toFixed(1)} L/s, c_in = ${P.cin.toFixed(2)} g/L`, x0 - 60, H * 0.09);
+  ctxFen.fillStyle = 'rgba(148,163,184,.9)'; ctxFen.font = '12px "Segoe UI", Inter, system-ui, sans-serif';
+  ctxFen.fillText(`entrada: Q = ${P.Q.toFixed(1)} L/s, c_in = ${P.cin.toFixed(2)} g/L`, x0 + 40, yTop - 40);
 }
 function dibujarNewton(W, H) {
   const T = sim.real[0];
@@ -1028,7 +1296,7 @@ function dibujarNewton(W, H) {
   ctxFen.fillStyle = 'rgba(226,232,240,.9)'; ctxFen.font = '13px ui-monospace, monospace';
   ctxFen.fillText(`T = ${T.toFixed(2)} °C`, tx + 16, yM + 4);
   ctxFen.fillStyle = 'rgba(148,163,184,.95)';
-  ctxFen.font = '12px Inter, sans-serif';
+  ctxFen.font = '12px "Segoe UI", Inter, system-ui, sans-serif';
   ctxFen.fillText(`ambiente: ${P.Tenv.toFixed(1)} °C` + (P.efecto === 'ambiente' ? `  →  ${sim.real[1].toFixed(1)} °C` : ''), W * 0.06, H * 0.10);
 }
 function dibujarRC(W, H) {
@@ -1096,8 +1364,8 @@ function dibujarFenomeno() {
   if (P.fenomeno === 'tanque') dibujarTanque(W, H);
   else if (P.fenomeno === 'newton') dibujarNewton(W, H);
   else dibujarRC(W, H);
-  ctxFen.fillStyle = 'rgba(148,163,184,.85)'; ctxFen.font = '12px Inter, sans-serif';
-  ctxFen.fillText('FENÓMENO (con los efectos reales)', 14, H - 12);
+  ctxFen.fillStyle = 'rgba(148,163,184,.85)'; ctxFen.font = '12px "Segoe UI", Inter, system-ui, sans-serif';
+  if (W >= 620) ctxFen.fillText('FENÓMENO (con los efectos reales)', 14, H - 12);
 }
 
 /* ---------- gráficas interactivas ---------- */
@@ -1113,179 +1381,151 @@ function dibujarGraficas() {
   const r = cGraf.parentElement.getBoundingClientRect();
   const W = r.width, H = r.height;
   ctxGraf.clearRect(0, 0, W, H);
-  const corte = W * 0.585;
+  const { izq: ci, der: cd } = cajasGraficas(W, H);
   const { ta, tb } = ventanaTiempo();
-  const xIzq = 52, xDer = corte - 16, yTop = 24, yInf = H - 26;
-  const px = (t) => xIzq + (xDer - xIzq) * ((t - ta) / Math.max(1e-9, tb - ta));
   const visibles = sim.hist.filter(h => h[0] >= ta - 0.05 && h[0] <= tb + 0.05);
   const m = modeloDe(P);
+  const nomY = `${m.etiqueta.replace('(t)', '')} (${m.unidad})`;
   let lo = Infinity, hi = -Infinity;
   for (const h of visibles) { lo = Math.min(lo, h[1], h[3]); hi = Math.max(hi, h[1], h[3]); }
-  if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
   if (graf.verAsin) { lo = Math.min(lo, m.inf); hi = Math.max(hi, m.inf); }
-  const margen = Math.max(1e-6, (hi - lo) * 0.12);
-  lo -= margen; hi += margen;
-  const Y = (v) => yInf - (yInf - yTop) * ((v - lo) / Math.max(1e-12, hi - lo));
-  ctxGraf.strokeStyle = 'rgba(148,163,184,.35)'; ctxGraf.lineWidth = 1;
-  ctxGraf.beginPath();
-  ctxGraf.moveTo(xIzq, yTop); ctxGraf.lineTo(xIzq, yInf); ctxGraf.lineTo(xDer, yInf);
-  ctxGraf.stroke();
-  ctxGraf.fillStyle = 'rgba(148,163,184,.8)'; ctxGraf.font = '10px ui-monospace, monospace';
-  ctxGraf.fillText(hi.toFixed(2), 6, yTop + 10);
-  ctxGraf.fillText(lo.toFixed(2), 6, yInf);
-  ctxGraf.fillText(`${ta.toFixed(1)} s`, xIzq, yInf + 14);
-  ctxGraf.fillText(`${tb.toFixed(1)} s`, xDer - 32, yInf + 14);
-  const trazar = (f, color, ancho, linea) => {
-    if (!visibles.length) return;
-    ctxGraf.strokeStyle = color; ctxGraf.lineWidth = ancho;
-    if (linea) ctxGraf.setLineDash(linea);
-    ctxGraf.beginPath();
-    visibles.forEach((h, i) => {
-      const X = px(h[0]), YY = Y(f(h));
-      if (i === 0) ctxGraf.moveTo(X, YY); else ctxGraf.lineTo(X, YY);
-    });
-    ctxGraf.stroke();
-    if (linea) ctxGraf.setLineDash([]);
-  };
+  const { X, Y } = marcoGrafica(ctxGraf, ci, [ta, tb], rangoCon(lo, hi, 0.1),
+                                { titulo: 'Fenómeno frente al modelo', ejeX: 't (s)', ejeY: nomY });
+  recortar(ctxGraf, ci);
   if (graf.verAsin) {
-    ctxGraf.setLineDash([6, 5]);
-    ctxGraf.strokeStyle = 'rgba(226,232,240,.45)';
-    ctxGraf.beginPath(); ctxGraf.moveTo(xIzq, Y(m.inf)); ctxGraf.lineTo(xDer, Y(m.inf)); ctxGraf.stroke();
-    ctxGraf.setLineDash([]);
-    ctxGraf.fillStyle = 'rgba(226,232,240,.7)';
-    ctxGraf.fillText(`y∞ = ${m.inf.toFixed(2)}`, xIzq + 4, Y(m.inf) - 4);
+    trazarSerie(ctxGraf, [ci.x0, ci.x1], x => [x, Y(m.inf)], TINTA.ref, 1.1, [6, 5]);
+    ctxGraf.font = `10.5px ${MONO}`; ctxGraf.fillStyle = TINTA.ref; ctxGraf.textAlign = 'right';
+    ctxGraf.fillText(`y∞ = ${m.inf.toFixed(2)}`, ci.x1 - 6, Y(m.inf) - 6); ctxGraf.textAlign = 'left';
   }
-  if (graf.verMod) trazar(h => h[3], 'rgba(0,242,254,.9)', 1.7);
-  if (graf.verFen) trazar(h => h[1], '#ffd166', 1.9);
+  if (graf.verMod) trazarSerie(ctxGraf, visibles, h => [X(h[0]), Y(h[3])], 'rgba(34,211,238,.55)', 4.2);
+  if (graf.verFen) trazarSerie(ctxGraf, visibles, h => [X(h[0]), Y(h[1])], TINTA.fen, 2.2);
+  ctxGraf.restore();
+
+  const items = [];
+  if (graf.verFen) items.push({ texto: 'Fenómeno', color: TINTA.fen });
+  if (graf.verMod) items.push({ texto: 'Modelo', color: TINTA.mod });
+  if (graf.verAsin) items.push({ texto: 'Asíntota', color: TINTA.ref, linea: [4, 3] });
+  leyenda(ctxGraf, items, ci.x1, ci.leyendaY);
+  if (graf.zoom > 1.01) {
+    ctxGraf.font = `10px ${FUENTE}`; ctxGraf.fillStyle = TINTA.tenue;
+    ctxGraf.fillText(`zoom ×${graf.zoom.toFixed(1)} · doble clic: vista completa`, ci.x0 + 8, ci.y0 - 8);
+  }
 
   if (graf.cursor !== null && graf.cursor >= ta && graf.cursor <= tb) {
-    const X = px(graf.cursor);
-    ctxGraf.strokeStyle = 'rgba(226,232,240,.4)';
-    ctxGraf.beginPath(); ctxGraf.moveTo(X, yTop); ctxGraf.lineTo(X, yInf); ctxGraf.stroke();
+    const Xc = X(graf.cursor);
+    ctxGraf.save();
+    ctxGraf.strokeStyle = 'rgba(226,232,240,.4)'; ctxGraf.setLineDash([3, 3]);
+    ctxGraf.beginPath(); ctxGraf.moveTo(Xc + 0.5, ci.y1); ctxGraf.lineTo(Xc + 0.5, ci.y0); ctxGraf.stroke();
+    ctxGraf.restore();
     let mejor = null;
     for (const h of sim.hist) if (!mejor || Math.abs(h[0] - graf.cursor) < Math.abs(mejor[0] - graf.cursor)) mejor = h;
     if (mejor) {
-      const caja = 116, cajaX = Math.min(X + 8, xDer - caja);
-      ctxGraf.fillStyle = 'rgba(8,13,28,.92)'; ctxGraf.fillRect(cajaX, yTop + 4, caja, 50);
-      ctxGraf.strokeStyle = 'rgba(148,163,184,.35)'; ctxGraf.strokeRect(cajaX, yTop + 4, caja, 50);
-      ctxGraf.font = '10px ui-monospace, monospace';
-      ctxGraf.fillStyle = '#e2e8f0'; ctxGraf.fillText(`t = ${mejor[0].toFixed(2)} s`, cajaX + 6, yTop + 17);
-      ctxGraf.fillStyle = '#ffd166'; ctxGraf.fillText(`fen = ${mejor[1].toFixed(4)}`, cajaX + 6, cajaYf(yTop));
-      ctxGraf.fillStyle = '#00f2fe'; ctxGraf.fillText(`mod = ${mejor[3].toFixed(4)}`, cajaX + 6, yTop + 43);
-      ctxGraf.fillStyle = '#f87171';
-      ctxGraf.fillText(`dif = ${(mejor[1] - mejor[3]).toExponential(2)}`, cajaX + 6, yTop + 56);
+      punto(ctxGraf, X(mejor[0]), Y(mejor[1]), 4, TINTA.fen, '#050914');
+      punto(ctxGraf, X(mejor[0]), Y(mejor[3]), 4, TINTA.mod, '#050914');
+      recuadro(ctxGraf, [
+        { texto: `t   = ${mejor[0].toFixed(2)} s`, color: TINTA.titulo },
+        { texto: `fen = ${mejor[1].toFixed(4)}`, color: TINTA.fen },
+        { texto: `mod = ${mejor[3].toFixed(4)}`, color: TINTA.mod },
+        { texto: `dif = ${(mejor[1] - mejor[3]).toExponential(2)}`, color: TINTA.dif }
+      ], Xc + 12, ci.y1 + 8, ci.x1);
     }
   }
-  ctxGraf.fillStyle = 'rgba(226,232,240,.85)'; ctxGraf.font = '12px Inter, sans-serif';
-  ctxGraf.fillText('Fenómeno frente al modelo (rueda: zoom · arrastre: desplazar)', xIzq, 15);
 
   // panel derecho
-  const gx0 = corte + 44, gx1 = W - 16, gy0 = H - 26, gy1 = 28;
-  ctxGraf.strokeStyle = 'rgba(148,163,184,.35)'; ctxGraf.lineWidth = 1;
-  ctxGraf.beginPath();
-  ctxGraf.moveTo(gx0, gy0); ctxGraf.lineTo(gx1, gy0); ctxGraf.moveTo(gx0, gy0); ctxGraf.lineTo(gx0, gy1);
-  ctxGraf.stroke();
   const titulos = { equilibrio: 'Camino hacia el equilibrio', razon: 'Razón de cambio y′ frente a y',
                     semilog: 'ln|y − y∞| frente a t', ajuste: 'Ajuste de τ con los datos' };
-  ctxGraf.fillStyle = 'rgba(226,232,240,.85)';
-  ctxGraf.fillText(titulos[graf.panel], gx0, 16);
+  const titulo = titulos[graf.panel];
 
   if (graf.panel === 'equilibrio') {
-    let yLo = Infinity, yHi = -Infinity;
-    for (const h of sim.hist) { yLo = Math.min(yLo, h[1], h[3], m.inf); yHi = Math.max(yHi, h[1], h[3], m.inf); }
-    const u = (v) => gy0 - (gy0 - gy1) * ((v - yLo) / Math.max(1e-12, yHi - yLo));
-    const T = sim.hist[sim.hist.length - 1][0] || 1;
-    const Xt = (t) => gx0 + (gx1 - gx0) * (t / T);
-    ctxGraf.setLineDash([5, 4]); ctxGraf.strokeStyle = 'rgba(226,232,240,.45)';
-    ctxGraf.beginPath(); ctxGraf.moveTo(gx0, u(m.inf)); ctxGraf.lineTo(gx1, u(m.inf)); ctxGraf.stroke();
-    ctxGraf.setLineDash([]);
-    ctxGraf.strokeStyle = '#ffd166'; ctxGraf.lineWidth = 1.7;
-    ctxGraf.beginPath();
-    sim.hist.forEach((h, i) => { const X = Xt(h[0]), YY = u(h[1]); if (i === 0) ctxGraf.moveTo(X, YY); else ctxGraf.lineTo(X, YY); });
-    ctxGraf.stroke();
-    ctxGraf.strokeStyle = 'rgba(0,242,254,.75)'; ctxGraf.lineWidth = 1.4;
-    ctxGraf.beginPath();
-    sim.hist.forEach((h, i) => { const X = Xt(h[0]), YY = u(h[3]); if (i === 0) ctxGraf.moveTo(X, YY); else ctxGraf.lineTo(X, YY); });
-    ctxGraf.stroke();
-    const t63 = m.tau;
-    if (t63 <= T) {
-      ctxGraf.strokeStyle = 'rgba(74,222,128,.8)'; ctxGraf.setLineDash([4, 4]);
-      ctxGraf.beginPath();
-      ctxGraf.moveTo(Xt(t63), gy0); ctxGraf.lineTo(Xt(t63), u(afinSolucion(m.lam, m.b, m.y0, t63)));
-      ctxGraf.stroke(); ctxGraf.setLineDash([]);
-      ctxGraf.fillStyle = 'rgba(74,222,128,.9)'; ctxGraf.font = '10px ui-monospace, monospace';
-      ctxGraf.fillText(`t = τ = ${t63.toFixed(2)} s`, Xt(t63) + 3, gy0 - 6);
+    let yLo = m.inf, yHi = m.inf;
+    for (const h of sim.hist) { yLo = Math.min(yLo, h[1], h[3]); yHi = Math.max(yHi, h[1], h[3]); }
+    const T = (sim.hist.length && sim.hist[sim.hist.length - 1][0]) || 1;
+    const g = marcoGrafica(ctxGraf, cd, [0, T], rangoCon(yLo, yHi, 0.1), { titulo, ejeX: 't (s)', ejeY: nomY });
+    recortar(ctxGraf, cd);
+    trazarSerie(ctxGraf, [cd.x0, cd.x1], x => [x, g.Y(m.inf)], TINTA.ref, 1.1, [5, 4]);
+    trazarSerie(ctxGraf, sim.hist, h => [g.X(h[0]), g.Y(h[3])], 'rgba(34,211,238,.55)', 3.8);
+    trazarSerie(ctxGraf, sim.hist, h => [g.X(h[0]), g.Y(h[1])], TINTA.fen, 2);
+    if (m.tau <= T) {
+      const y63 = afinSolucion(m.lam, m.b, m.y0, m.tau);
+      trazarSerie(ctxGraf, [[m.tau, cd.y0], [m.tau, g.Y(y63)]], p => [g.X(p[0]), p[1]], 'rgba(74,222,128,.8)', 1.2, [4, 4]);
+      punto(ctxGraf, g.X(m.tau), g.Y(y63), 4, TINTA.vel, '#050914');
+      ctxGraf.font = `10.5px ${MONO}`; ctxGraf.fillStyle = TINTA.vel;
+      ctxGraf.fillText(`t = τ = ${m.tau.toFixed(2)} s`, g.X(m.tau) + 6, cd.y0 - 8);
     }
-    ctxGraf.fillStyle = 'rgba(148,163,184,.85)'; ctxGraf.font = '10px ui-monospace, monospace';
-    ctxGraf.fillText(`${m.etiqueta}`, gx0 + 4, gy1 + 10);
+    ctxGraf.restore();
+    leyenda(ctxGraf, [{ texto: 'Fenómeno', color: TINTA.fen }, { texto: 'Modelo', color: TINTA.mod }], cd.x1, cd.leyendaY);
   } else if (graf.panel === 'razon') {
-    // y' frente a y: recta de pendiente -lambda que corta el eje en y∞
-    const yLo = Math.min(m.inf, m.y0) - Math.abs(m.inf - m.y0) * 0.25;
-    const yHi = Math.max(m.inf, m.y0) + Math.abs(m.inf - m.y0) * 0.25;
-    const rMax = Math.max(Math.abs(m.lam * (yLo - m.inf)), Math.abs(m.lam * (yHi - m.inf)));
-    const X2 = (v) => gx0 + (gx1 - gx0) * ((v - yLo) / Math.max(1e-12, yHi - yLo));
-    const Y2 = (v) => (gy0 + gy1) / 2 - ((gy0 - gy1) / 2) * (v / Math.max(1e-12, rMax));
-    ctxGraf.strokeStyle = 'rgba(148,163,184,.22)';
-    ctxGraf.beginPath(); ctxGraf.moveTo(gx0, (gy0 + gy1) / 2); ctxGraf.lineTo(gx1, (gy0 + gy1) / 2); ctxGraf.stroke();
-    ctxGraf.strokeStyle = 'rgba(0,242,254,.9)'; ctxGraf.lineWidth = 1.6;
-    ctxGraf.beginPath(); ctxGraf.moveTo(X2(yLo), Y2(m.lam * (yLo - m.inf))); ctxGraf.lineTo(X2(yHi), Y2(m.lam * (yHi - m.inf))); ctxGraf.stroke();
-    ctxGraf.fillStyle = '#ffd166';
+    // y' frente a y: recta de pendiente −λ que corta el eje en y∞
+    const ext = Math.abs(m.inf - m.y0) || Math.max(1e-3, Math.abs(m.inf) * 0.1);
+    const yLo = Math.min(m.inf, m.y0) - ext * 0.25, yHi = Math.max(m.inf, m.y0) + ext * 0.25;
+    const rMax = Math.max(Math.abs(m.lam * (yLo - m.inf)), Math.abs(m.lam * (yHi - m.inf)), 1e-9) * 1.1;
+    const g = marcoGrafica(ctxGraf, cd, [yLo, yHi], [-rMax, rMax], { titulo, ejeX: nomY, ejeY: 'y′' });
+    recortar(ctxGraf, cd);
+    trazarSerie(ctxGraf, [yLo, yHi], v => [g.X(v), g.Y(m.lam * (m.inf - v))], TINTA.mod, 1.8);
     for (const h of sim.hist) {
       if (h[0] < 0.2) continue;
-      ctxGraf.beginPath(); ctxGraf.arc(X2(h[1]), Y2(m.lam * (h[1] - m.inf)), 1.6, 0, Math.PI * 2); ctxGraf.fill();
+      punto(ctxGraf, g.X(h[1]), g.Y(m.lam * (m.inf - h[1])), 1.8, TINTA.fen);
     }
-    ctxGraf.fillStyle = 'rgba(226,232,240,.85)'; ctxGraf.font = '10px ui-monospace, monospace';
-    ctxGraf.fillText(`y∞ = ${m.inf.toFixed(2)} (donde y′ = 0)`, gx0 + 4, gy1 + 12);
-    ctxGraf.fillText(`pendiente = −λ = ${(-m.lam).toFixed(4)}`, gx0 + 4, gy1 + 26);
+    punto(ctxGraf, g.X(m.inf), g.Y(0), 4.5, TINTA.vel, '#050914');
+    ctxGraf.restore();
+    recuadro(ctxGraf, [
+      { texto: `y∞ = ${m.inf.toFixed(2)}  (donde y′ = 0)`, color: TINTA.vel },
+      { texto: `pendiente = −λ = ${(-m.lam).toFixed(4)}`, color: TINTA.mod }
+    ], cd.x1 - 6, cd.y1 + 8, cd.x1, true);
   } else if (graf.panel === 'semilog') {
     const est = sim.ajuste;
     if (!est || !est.puntos) {
-      ctxGraf.fillStyle = 'rgba(148,163,184,.9)'; ctxGraf.font = '11px Inter, sans-serif';
-      ctxGraf.fillText('Necesito más datos para el ajuste…', gx0 + 6, gy0 - 30);
-    } else {
-      const { xs, ys } = est.puntos;
-      const lo2 = Math.min(...ys), hi2 = Math.max(...ys);
-      const X3 = (t) => gx0 + (gx1 - gx0) * ((t - xs[0]) / Math.max(1e-9, xs[xs.length - 1] - xs[0]));
-      const Y3 = (v) => gy0 - (gy0 - gy1) * ((v - lo2) / Math.max(1e-12, hi2 - lo2));
-      ctxGraf.fillStyle = '#ffd166';
-      xs.forEach((t, i) => { ctxGraf.beginPath(); ctxGraf.arc(X3(t), Y3(ys[i]), 2.2, 0, Math.PI * 2); ctxGraf.fill(); });
-      const aj = ajusteLineal(xs, ys);
-      ctxGraf.strokeStyle = 'rgba(0,242,254,.9)'; ctxGraf.lineWidth = 1.5;
-      ctxGraf.beginPath();
-      ctxGraf.moveTo(X3(xs[0]), Y3(aj.a * xs[0] + aj.b));
-      ctxGraf.lineTo(X3(xs[xs.length - 1]), Y3(aj.a * xs[xs.length - 1] + aj.b));
-      ctxGraf.stroke();
-      ctxGraf.fillStyle = 'rgba(226,232,240,.9)'; ctxGraf.font = '10px ui-monospace, monospace';
-      ctxGraf.fillText(`pendiente = ${aj.a.toFixed(4)}  →  τ = ${(-1 / aj.a).toFixed(3)} s`, gx0 + 4, gy1 + 12);
-      ctxGraf.fillText(`R² = ${aj.r2.toFixed(4)}`, gx0 + 4, gy1 + 26);
+      marcoGrafica(ctxGraf, cd, [0, 1], [0, 1], { titulo, sinNumerosY: true });
+      mensajeVacio(ctxGraf, cd, 'Reuniendo datos para el ajuste…');
+      return;
     }
+    const { xs, ys } = est.puntos;
+    const aj = ajusteLineal(xs, ys);
+    const g = marcoGrafica(ctxGraf, cd, rangoCon(xs[0], xs[xs.length - 1], 0.03), rangoCon(Math.min(...ys), Math.max(...ys), 0.1),
+                           { titulo, ejeX: 't (s)', ejeY: 'ln|y − y∞|' });
+    recortar(ctxGraf, cd);
+    xs.forEach((t, i) => punto(ctxGraf, g.X(t), g.Y(ys[i]), 2.4, TINTA.fen));
+    trazarSerie(ctxGraf, [xs[0], xs[xs.length - 1]], t => [g.X(t), g.Y(aj.a * t + aj.b)], TINTA.mod, 1.8);
+    ctxGraf.restore();
+    recuadro(ctxGraf, [
+      { texto: `pendiente = ${aj.a.toFixed(4)}`, color: TINTA.mod },
+      { texto: `τ = −1/pendiente = ${(-1 / aj.a).toFixed(3)} s`, color: TINTA.fen },
+      { texto: `R² = ${aj.r2.toFixed(4)}`, color: TINTA.texto }
+    ], cd.x1 - 6, cd.y1 + 8, cd.x1, true);
   } else if (graf.panel === 'ajuste') {
     const tau = sim.ajuste ? sim.ajuste.tau : null;
-    const escala = Math.max(tau || 0, m.tau) * 1.3 || 1;
-    const X4 = (t) => gx0 + (gx1 - gx0) * (t / escala);
-    const Y4 = () => 0;
-    ctxGraf.strokeStyle = 'rgba(148,163,184,.25)';
-    ctxGraf.beginPath(); ctxGraf.moveTo(gx0, gy0 - 30); ctxGraf.lineTo(gx1, gy0 - 30); ctxGraf.stroke();
+    const escala = Math.max(tau || 0, m.tau) * 1.25 || 1;
+    const g = marcoGrafica(ctxGraf, cd, [0, escala], [0, 3], { titulo, ejeX: 'τ (s)', sinNumerosY: true });
     const barra = (t, color, etiqueta, fila) => {
       if (t === null) return;
+      const yc = g.Y(fila === 0 ? 1 : 2);
+      ctxGraf.save();
       ctxGraf.fillStyle = color;
-      ctxGraf.fillRect(gx0 + 60, gy0 - 40 - fila * 26, Math.max(2, (gx1 - gx0 - 80) * (t / escala)), 14);
-      ctxGraf.fillStyle = 'rgba(226,232,240,.9)'; ctxGraf.font = '10px ui-monospace, monospace';
-      ctxGraf.fillText(`${etiqueta} ${t.toFixed(3)} s`, gx0 + 4, gy0 - 30 - fila * 26);
+      ctxGraf.beginPath();
+      const ancho = Math.max(3, g.X(t) - cd.x0);
+      if (ctxGraf.roundRect) ctxGraf.roundRect(cd.x0 + 1, yc - 11, ancho, 22, [0, 6, 6, 0]); else ctxGraf.rect(cd.x0 + 1, yc - 11, ancho, 22);
+      ctxGraf.fill();
+      ctxGraf.font = `600 11px ${FUENTE}`; ctxGraf.textBaseline = 'bottom'; ctxGraf.fillStyle = TINTA.texto;
+      ctxGraf.fillText(etiqueta, cd.x0 + 4, yc - 15);
+      ctxGraf.font = `11px ${MONO}`; ctxGraf.textBaseline = 'middle';
+      const txt = `${t.toFixed(3)} s`, w = ctxGraf.measureText(txt).width;
+      const dentro = ancho > w + 16;
+      ctxGraf.fillStyle = dentro ? '#04121a' : TINTA.titulo;
+      ctxGraf.textAlign = dentro ? 'right' : 'left';
+      ctxGraf.fillText(txt, dentro ? cd.x0 + ancho - 8 : cd.x0 + ancho + 8, yc);
+      ctxGraf.restore();
     };
-    barra(m.tau, 'rgba(0,242,254,.9)', 'modelo', 0);
-    barra(tau, '#ffd166', 'datos ', 1);
-    ctxGraf.fillStyle = 'rgba(148,163,184,.9)'; ctxGraf.font = '11px Inter, sans-serif';
+    barra(m.tau, TINTA.mod, 'Modelo', 0);
+    barra(tau, TINTA.fen, 'Datos medidos', 1);
     if (tau) {
       const dif = Math.abs(tau - m.tau) / m.tau * 100;
-      ctxGraf.fillStyle = dif < 10 ? '#4ade80' : '#f87171';
-      ctxGraf.fillText(`diferencia ${dif.toFixed(1)} %`, gx0 + 6, gy1 + 16);
+      recuadro(ctxGraf, [{ texto: `diferencia ${dif.toFixed(1)} %`, color: dif < 10 ? TINTA.vel : TINTA.dif }],
+               cd.x1 - 6, cd.y1 + 8, cd.x1, true);
     } else {
-      ctxGraf.fillText('Aún no hay suficientes datos.', gx0 + 6, gy1 + 16);
+      mensajeVacio(ctxGraf, cd, 'Aún no hay suficientes datos.');
     }
   }
 }
-function cajaYf(yTop) { return yTop + 30; }
 
 function dibujar() { dibujarFenomeno(); dibujarGraficas(); }
 
@@ -1386,31 +1626,7 @@ document.querySelectorAll('button[data-panel]').forEach((b) => {
     dibujar();
   });
 });
-cGraf.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  graf.zoom = Math.max(1, Math.min(40, graf.zoom * (e.deltaY > 0 ? 1 / 1.15 : 1.15)));
-  dibujar();
-}, { passive: false });
-cGraf.addEventListener('pointerdown', (e) => {
-  graf.arrastrando = true; graf.ultimoX = e.clientX;
-  cGraf.setPointerCapture(e.pointerId);
-});
-cGraf.addEventListener('pointermove', (e) => {
-  const r = cGraf.getBoundingClientRect();
-  if (graf.arrastrando) {
-    const ancho = Math.max(1, r.width * 0.585 - 68);
-    graf.cx = Math.max(0, Math.min(1, graf.cx - (e.clientX - graf.ultimoX) / ancho / graf.zoom));
-    graf.ultimoX = e.clientX;
-  } else {
-    const { ta, tb } = ventanaTiempo();
-    const xIzq = 52, xDer = r.width * 0.585 - 16;
-    const frac = (e.clientX - r.left - xIzq) / Math.max(1, xDer - xIzq);
-    graf.cursor = frac >= 0 && frac <= 1 ? ta + frac * (tb - ta) : null;
-  }
-  dibujar();
-});
-cGraf.addEventListener('pointerup', () => { graf.arrastrando = false; });
-cGraf.addEventListener('pointerleave', () => { graf.arrastrando = false; graf.cursor = null; dibujar(); });
+instalarInteraccion(cGraf, graf, ventanaTiempo, dibujar);
 
 /* ---------- exportación ---------- */
 const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -1649,14 +1865,17 @@ function fijarPausa(v) {
   btnPausa.textContent = v ? '▶ Seguir' : '⏸ Pausar';
   btnPausa.classList.toggle('oro', v);
 }
+let pausaManual = false;   // la pausa que pidió el estudiante no la levanta el portal
 btnPausa.addEventListener('click', () => {
   fijarPausa(!pausado);
+  pausaManual = pausado;
   avisar(pausado ? 'Simulación en pausa' : 'Simulación en marcha', pausado ? 'oro' : 'ok');
 });
 /* Si el laboratorio vive dentro del portal, el portal manda pausar al cambiar de pestaña. */
 window.addEventListener('message', (e) => {
+  if (e.source !== window.parent) return;
   if (e.data === 'pausar') fijarPausa(true);
-  else if (e.data === 'seguir') fijarPausa(false);
+  else if (e.data === 'seguir' && !pausaManual) fijarPausa(false);
 });
 
 function abrirGuia(abrir) {
@@ -1674,6 +1893,7 @@ document.getElementById('btnNoVer').addEventListener('click', () => {
 });
 window.addEventListener('keydown', (e) => {
   if (e.target.matches('input, select, textarea')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;   // no secuestrar Ctrl+P, Ctrl+F, Alt+←…
   if (e.key === 'Escape') abrirGuia(false);
   else if (e.key === ' ') { e.preventDefault(); btnPausa.click(); }
   else if (e.key === 'p' || e.key === 'P') btnPlegar.click();
@@ -1694,33 +1914,5 @@ try {
   if (localStorage.getItem('odelab03-guia') !== 'vista' && window.self === window.top) abrirGuia(true);
 } catch (e) { if (window.self === window.top) abrirGuia(true); }
 </script>
-<div class="avisos" id="avisos"></div>
-
-<div class="bienvenida oculto" id="bienvenida">
-  <div class="caja">
-    <h3>Laboratorio 03 · Tanque, enfriamiento y circuito RC</h3>
-    <p>
-      Tres fenómenos distintos que obedecen la misma ecuación de primer orden. Elija uno, mueva sus
-      parámetros y compruebe si la ecuación afín explica lo que se mide; cuando no, hay que
-      descubrir qué supuesto falta.
-    </p>
-    <div class="pasos">
-      <div class="paso"><b>1 · Elija el fenómeno</b>
-        <span>Tanque con entrada y salida, taza que se enfría o capacitor que se carga. Las
-        etiquetas cambian; el modelo es el mismo.</span></div>
-      <div class="paso"><b>2 · Mida el tiempo característico</b>
-        <span>El panel «Ajuste de τ» y la gráfica semilogarítmica estiman τ con sus datos: compárelo
-        con V/Q, 1/k o RC.</span></div>
-      <div class="paso"><b>3 · Diagnostique</b>
-        <span>Fuga, degradación, aporte, radiación o resistencia extra: el valor final y el
-        decaimiento lo delatan.</span></div>
-    </div>
-    <div class="fila">
-      <button id="btnEmpezar" class="activo">Empezar el laboratorio</button>
-      <button id="btnNoVer" class="mini" style="flex:0 0 auto">No volver a mostrarla</button>
-    </div>
-    <div class="atajos">Atajos: espacio = pausar · R = reiniciar · P = panel · G = guardar gráficas · Esc = cerrar</div>
-  </div>
-</div>
 </body>
 </html>

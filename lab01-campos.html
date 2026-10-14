@@ -296,6 +296,22 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
   .chips{width:100%}
   .chip{flex:1}
   .pista{max-width:88%; font-size:.72rem}
+  .lienzo{flex:0 0 auto; height:68vh; min-height:380px}
+  .marca-lab{flex-wrap:wrap; row-gap:8px}
+  .formula{font-size:.85rem; max-width:100%; overflow-x:auto}
+}
+@media (max-width:620px){
+  .sub-lab{display:none}
+  h1{font-size:.9rem}
+  .chips{gap:5px}
+  .chip{min-width:0; padding:4px 8px}
+  .chip span{font-size:.56rem}
+  .chip b{font-size:.76rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .chips{display:grid; grid-template-columns:repeat(3,minmax(0,1fr))}
+  .marca-lab > div{flex:1 1 180px; min-width:0}
+  .vistas{flex:0 0 auto; min-height:0}
+  #cvFen{flex:0 0 auto; height:340px}
+  #cvGraf{flex:0 0 auto; height:600px}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s !important; transition-duration:.001s !important}
@@ -328,7 +344,7 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
     <canvas id="cv"></canvas>
     <div class="pista" id="pista">
       Haga clic en el lienzo para lanzar una curva solución desde ese punto (se integra hacia
-      adelante y hacia atrás). Rueda del ratón: acercar. May&uacute;s + arrastrar: desplazar.
+      adelante y hacia atrás). Rueda del ratón: acercar. Arrastrar: desplazar la vista.
     </div>
   </div>
 
@@ -427,6 +443,34 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
       </div>
     </div>
   </aside>
+</div>
+
+<div class="avisos" id="avisos"></div>
+
+<div class="bienvenida oculto" id="bienvenida">
+  <div class="caja">
+    <h3>Laboratorio 01 · Campos de direcciones e isóclinas</h3>
+    <p>
+      Una ecuación diferencial se entiende mejor mirándola antes de resolverla. Aquí escribe la
+      ecuación, ve el campo de pendientes que genera y comprueba con qué rapidez los métodos
+      numéricos se acercan a la solución exacta.
+    </p>
+    <div class="pasos">
+      <div class="paso"><b>1 · Elija o escriba f(x, y)</b>
+        <span>El catálogo trae nueve ecuaciones con solución exacta conocida; también puede escribir
+        la suya.</span></div>
+      <div class="paso"><b>2 · Lance curvas con un clic</b>
+        <span>Cada clic integra desde ese punto hacia adelante y hacia atrás, siguiendo el campo.</span></div>
+      <div class="paso"><b>3 · Compare los métodos</b>
+        <span>Euler, Heun y RK4 con el mismo paso h: mire el error y el orden empírico que aparece
+        arriba.</span></div>
+    </div>
+    <div class="fila">
+      <button id="btnEmpezar" class="activo">Empezar el laboratorio</button>
+      <button id="btnNoVer" class="mini" style="flex:0 0 auto">No volver a mostrarla</button>
+    </div>
+    <div class="atajos">Atajos: P = panel · R = borrar curvas · Esc = cerrar esta guía</div>
+  </div>
 </div>
 
 <script>
@@ -821,7 +865,7 @@ let vista = { cx: 0, cy: 0, ancho: 8 };
 let metodo = 'rk4';
 let h = 0.2;
 let k = 0;
-let arrastrando = false, ultimo = null;
+let arrastrando = false, ultimo = null, inicio = null, lectura = null;
 
 const COLORES = ['#00f2fe', '#ffd166', '#4ade80', '#f472b6', '#a78bfa', '#fb923c', '#38bdf8'];
 
@@ -863,20 +907,42 @@ function dibujar() {
 
   // Rejilla y ejes
   if (cRejilla.checked) {
-    const paso = Math.pow(10, Math.round(Math.log10(vista.ancho / 8)));
+    const paso = pasoBonito(vista.ancho, Math.max(4, Math.round(W / 90)));
+    const fino = paso / 5;
     ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(56,189,248,.09)';
-    for (let x = Math.ceil(xmin / paso) * paso; x <= xmax; x += paso) {
-      const p = pantallaDesdeMundo(x, 0);
-      ctx.beginPath(); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, H); ctx.stroke();
-    }
-    for (let y = Math.ceil(ymin / paso) * paso; y <= ymax; y += paso) {
-      const p = pantallaDesdeMundo(0, y);
-      ctx.beginPath(); ctx.moveTo(0, p.y); ctx.lineTo(W, p.y); ctx.stroke();
-    }
-    ctx.strokeStyle = 'rgba(56,189,248,.35)';
+    ctx.strokeStyle = 'rgba(56,189,248,.035)';
+    ctx.beginPath();
+    for (let x = Math.ceil(xmin / fino) * fino; x <= xmax; x += fino) { const p = pantallaDesdeMundo(x, 0); ctx.moveTo(Math.round(p.x) + .5, 0); ctx.lineTo(Math.round(p.x) + .5, H); }
+    for (let y = Math.ceil(ymin / fino) * fino; y <= ymax; y += fino) { const p = pantallaDesdeMundo(0, y); ctx.moveTo(0, Math.round(p.y) + .5); ctx.lineTo(W, Math.round(p.y) + .5); }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(56,189,248,.10)';
+    ctx.beginPath();
+    for (let x = Math.ceil(xmin / paso) * paso; x <= xmax; x += paso) { const p = pantallaDesdeMundo(x, 0); ctx.moveTo(Math.round(p.x) + .5, 0); ctx.lineTo(Math.round(p.x) + .5, H); }
+    for (let y = Math.ceil(ymin / paso) * paso; y <= ymax; y += paso) { const p = pantallaDesdeMundo(0, y); ctx.moveTo(0, Math.round(p.y) + .5); ctx.lineTo(W, Math.round(p.y) + .5); }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(56,189,248,.42)';
     const o = pantallaDesdeMundo(0, 0);
-    ctx.beginPath(); ctx.moveTo(o.x, 0); ctx.lineTo(o.x, H); ctx.moveTo(0, o.y); ctx.lineTo(W, o.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(Math.round(o.x) + .5, 0); ctx.lineTo(Math.round(o.x) + .5, H);
+    ctx.moveTo(0, Math.round(o.y) + .5); ctx.lineTo(W, Math.round(o.y) + .5); ctx.stroke();
+    // números: pegados a los ejes, o al borde si el eje quedó fuera de la vista
+    const ex = Math.min(H - 16, Math.max(6, o.y + 6)), ey = Math.min(W - 6, Math.max(34, o.x - 6));
+    ctx.font = '10px ui-monospace, Consolas, monospace'; ctx.fillStyle = 'rgba(148,163,184,.85)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let x = Math.ceil(xmin / paso) * paso; x <= xmax; x += paso) {
+      if (Math.abs(x) < paso * 1e-6) continue;
+      const p = pantallaDesdeMundo(x, 0);
+      if (p.x > 24 && p.x < W - 24) rotuloEje(numeroEje(x, paso), p.x, ex);
+    }
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let y = Math.ceil(ymin / paso) * paso; y <= ymax; y += paso) {
+      if (Math.abs(y) < paso * 1e-6) continue;
+      const p = pantallaDesdeMundo(0, y);
+      if (p.y > 12 && p.y < H - 12) rotuloEje(numeroEje(y, paso), ey, p.y);
+    }
+    ctx.font = 'italic 13px "Cambria Math", "Times New Roman", serif'; ctx.fillStyle = 'rgba(203,213,225,.9)';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText('x', W - 8, ex - 4);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText('y', ey + 8, 8);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
 
   // Isóclinas
@@ -898,14 +964,13 @@ function dibujar() {
     const ny = Math.max(10, Math.min(34, Math.round(H / 26)));
     const segs = campoDirecciones(f, xmin, xmax, ymin, ymax, nx, ny);
     ePuntos.textContent = String(segs.length);
-    const largo = Math.min(11, (W / nx) * 0.42);
-    ctx.lineWidth = 1;
+    const largo = Math.min(12, (W / nx) * 0.46);
+    ctx.lineWidth = 1.3; ctx.lineCap = 'round';
     for (const s of segs) {
       const p = pantallaDesdeMundo(s.x, s.y);
       const n = Math.hypot(1, s.m) || 1;
       const ux = 1 / n, uy = -s.m / n;   // en pantalla la y crece hacia abajo
-      const intensidad = Math.min(0.9, 0.22 + Math.abs(s.m) / 4);
-      ctx.strokeStyle = `rgba(0,242,254,${intensidad.toFixed(2)})`;
+      ctx.strokeStyle = colorPendiente(s.m);
       ctx.beginPath();
       ctx.moveTo(p.x - ux * largo / 2, p.y - uy * largo / 2);
       ctx.lineTo(p.x + ux * largo / 2, p.y + uy * largo / 2);
@@ -915,18 +980,19 @@ function dibujar() {
 
   // Curvas del usuario
   if (cCurvas.checked) {
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     curvas.forEach((c, idx) => {
-      ctx.strokeStyle = COLORES[idx % COLORES.length];
-      ctx.lineWidth = 2;
       ctx.beginPath();
       c.pts.forEach(([x, y], i) => {
         const p = pantallaDesdeMundo(x, y);
         if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
       });
-      ctx.stroke();
+      ctx.strokeStyle = 'rgba(5,9,20,.85)'; ctx.lineWidth = 5.5; ctx.stroke();   // contorno sobre el campo
+      ctx.strokeStyle = COLORES[idx % COLORES.length]; ctx.lineWidth = 2.3; ctx.stroke();
       const p0 = pantallaDesdeMundo(c.x0, c.y0);
       ctx.fillStyle = COLORES[idx % COLORES.length];
-      ctx.beginPath(); ctx.arc(p0.x, p0.y, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#050914'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(p0.x, p0.y, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     });
   }
 
@@ -958,7 +1024,74 @@ function dibujar() {
       });
       ctx.stroke();
     }
+    const items = [];
+    if (cExacta.checked && base.exacta) items.push(['Solución exacta', 'rgba(226,232,240,.75)', [6, 5]]);
+    if (cNumerica.checked) items.push([`Numérica (${selMetodo.options[selMetodo.selectedIndex].text.split(' (')[0]})`, '#4ade80', []]);
+    if (items.length) leyendaCampo(items, W);
   }
+
+  // lectura del puntero
+  if (lectura && !arrastrando) {
+    const m = lectura;
+    let pend = NaN;
+    try { pend = f(m.x, m.y); } catch (e) { /* fuera del dominio */ }
+    const filas = [`x = ${m.x.toFixed(3)}`, `y = ${m.y.toFixed(3)}`,
+                   `f(x, y) = ${Number.isFinite(pend) ? pend.toFixed(3) : '—'}`];
+    ctx.font = '11px ui-monospace, Consolas, monospace';
+    const ancho = Math.max(...filas.map(s => ctx.measureText(s).width)) + 20;
+    const bx = W - ancho - 12, by = H - filas.length * 16 - 22;
+    ctx.fillStyle = 'rgba(7,11,24,.92)'; ctx.strokeStyle = 'rgba(148,163,184,.3)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx + .5, by + .5, ancho, filas.length * 16 + 10, 7); else ctx.rect(bx + .5, by + .5, ancho, filas.length * 16 + 10);
+    ctx.fill(); ctx.stroke();
+    ctx.textBaseline = 'top';
+    filas.forEach((s, i) => { ctx.fillStyle = i === 2 ? '#22d3ee' : 'rgba(226,232,240,.9)'; ctx.fillText(s, bx + 10, by + 7 + i * 16); });
+    ctx.textBaseline = 'alphabetic';
+  }
+}
+
+function pasoBonito(rango, n) {
+  const bruto = rango / Math.max(1, n);
+  const p = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const q = bruto / p;
+  return (q < 1.5 ? 1 : q < 3 ? 2 : q < 7 ? 5 : 10) * p;
+}
+/* Texto con contorno del color de fondo para que se lea sobre el campo. */
+function rotuloEje(s, x, y) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(5,9,20,.95)'; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+  ctx.strokeText(s, x, y); ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function numeroEje(v, paso) {
+  const dec = Math.max(0, Math.min(6, -Math.floor(Math.log10(paso) + 1e-9)));
+  return v.toFixed(dec).replace('-', '−');
+}
+/* Pendiente suave en cian, empinada en violeta: el ojo ve dónde cambia rápido la solución. */
+function colorPendiente(m) {
+  if (!Number.isFinite(m)) return 'rgba(248,113,113,.6)';
+  const s = Math.atan(Math.abs(m)) / (Math.PI / 2);
+  const r = Math.round(34 + (167 - 34) * s), g = Math.round(211 + (139 - 211) * s), b = Math.round(238 + (250 - 238) * s);
+  return `rgba(${r},${g},${b},${(0.5 + 0.35 * s).toFixed(2)})`;
+}
+function leyendaCampo(items, W) {
+  ctx.font = '11px "Segoe UI", Inter, system-ui, sans-serif';
+  const anchos = items.map(([s]) => ctx.measureText(s).width + 34);
+  const total = anchos.reduce((a, b) => a + b, 0) + 12;
+  const bx = W - total - 56, by = 12;
+  ctx.fillStyle = 'rgba(7,11,24,.88)'; ctx.strokeStyle = 'rgba(148,163,184,.25)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx + .5, by + .5, total, 26, 7); else ctx.rect(bx + .5, by + .5, total, 26);
+  ctx.fill(); ctx.stroke();
+  let x = bx + 10;
+  ctx.textBaseline = 'middle';
+  items.forEach(([s, color, linea], i) => {
+    ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.setLineDash(linea);
+    ctx.beginPath(); ctx.moveTo(x, by + 13.5); ctx.lineTo(x + 18, by + 13.5); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(203,213,225,.9)'; ctx.fillText(s, x + 24, by + 13.5);
+    x += anchos[i];
+  });
+  ctx.textBaseline = 'alphabetic';
 }
 
 /* ---------- comparación de métodos ---------- */
@@ -1046,7 +1179,12 @@ btnAplicar.addEventListener('click', () => aplicarExpresion(txtF.value, null, nu
 txtF.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnAplicar.click(); });
 
 cv.addEventListener('pointerdown', (e) => {
-  if (e.shiftKey) { arrastrando = true; ultimo = { x: e.clientX, y: e.clientY }; return; }
+  inicio = { x: e.clientX, y: e.clientY };
+  ultimo = { x: e.clientX, y: e.clientY };
+  arrastrando = e.shiftKey;
+  cv.setPointerCapture(e.pointerId);
+});
+function lanzarCurva(e) {
   const r = cv.getBoundingClientRect();
   const m = mundoDesdePantalla(e.clientX - r.left, e.clientY - r.top);
   const [ymin, ymax] = rangoY();
@@ -1060,17 +1198,29 @@ cv.addEventListener('pointerdown', (e) => {
   eCurvas.textContent = String(curvas.length);
   comparar();
   dibujar();
-});
+}
 cv.addEventListener('pointermove', (e) => {
-  if (!arrastrando || !ultimo) return;
   const r = cv.getBoundingClientRect();
+  if (inicio && !arrastrando && Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y) > 5) arrastrando = true;
+  if (!arrastrando || !ultimo) {
+    lectura = mundoDesdePantalla(e.clientX - r.left, e.clientY - r.top);
+    dibujar();
+    return;
+  }
+  cv.style.cursor = 'grabbing';
   const escala = r.width / vista.ancho;
   vista.cx -= (e.clientX - ultimo.x) / escala;
   vista.cy += (e.clientY - ultimo.y) / escala;
   ultimo = { x: e.clientX, y: e.clientY };
   dibujar();
 });
-window.addEventListener('pointerup', () => { arrastrando = false; ultimo = null; });
+cv.addEventListener('pointerup', (e) => {
+  if (inicio && !arrastrando) lanzarCurva(e);
+  arrastrando = false; ultimo = null; inicio = null;
+  cv.style.cursor = 'crosshair';
+});
+cv.addEventListener('pointercancel', () => { arrastrando = false; ultimo = null; inicio = null; });
+cv.addEventListener('pointerleave', () => { if (!inicio) { lectura = null; dibujar(); } });
 cv.addEventListener('wheel', (e) => {
   e.preventDefault();
   const r = cv.getBoundingClientRect();
@@ -1150,6 +1300,7 @@ document.getElementById('btnNoVer').addEventListener('click', () => {
 });
 window.addEventListener('keydown', (e) => {
   if (e.target.matches('input, select, textarea')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;   // no secuestrar Ctrl+P, Ctrl+F, Alt+←…
   if (e.key === 'Escape') abrirGuia(false);
   else if (e.key === 'p' || e.key === 'P') btnPlegar.click();
   else if (e.key === 'r' || e.key === 'R') document.getElementById('btnLimpiar').click();
@@ -1165,32 +1316,5 @@ try {
   if (localStorage.getItem('odelab01-guia') !== 'vista' && window.self === window.top) abrirGuia(true);
 } catch (e) { if (window.self === window.top) abrirGuia(true); }
 </script>
-<div class="avisos" id="avisos"></div>
-
-<div class="bienvenida oculto" id="bienvenida">
-  <div class="caja">
-    <h3>Laboratorio 01 · Campos de direcciones e isóclinas</h3>
-    <p>
-      Una ecuación diferencial se entiende mejor mirándola antes de resolverla. Aquí escribe la
-      ecuación, ve el campo de pendientes que genera y comprueba con qué rapidez los métodos
-      numéricos se acercan a la solución exacta.
-    </p>
-    <div class="pasos">
-      <div class="paso"><b>1 · Elija o escriba f(x, y)</b>
-        <span>El catálogo trae nueve ecuaciones con solución exacta conocida; también puede escribir
-        la suya.</span></div>
-      <div class="paso"><b>2 · Lance curvas con un clic</b>
-        <span>Cada clic integra desde ese punto hacia adelante y hacia atrás, siguiendo el campo.</span></div>
-      <div class="paso"><b>3 · Compare los métodos</b>
-        <span>Euler, Heun y RK4 con el mismo paso h: mire el error y el orden empírico que aparece
-        arriba.</span></div>
-    </div>
-    <div class="fila">
-      <button id="btnEmpezar" class="activo">Empezar el laboratorio</button>
-      <button id="btnNoVer" class="mini" style="flex:0 0 auto">No volver a mostrarla</button>
-    </div>
-    <div class="atajos">Atajos: P = panel · R = borrar curvas · Esc = cerrar esta guía</div>
-  </div>
-</div>
 </body>
 </html>

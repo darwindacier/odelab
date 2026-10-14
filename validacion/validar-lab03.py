@@ -2,13 +2,14 @@ r"""Valida el laboratorio 03: núcleo afín, los tres fenómenos, el renderizado
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-HTML = Path(r"C:\Users\Darwin\Desktop\odelab\lab03-tanque-newton-rc.html")
-TMP = Path(r"C:\Users\Darwin\Desktop\_val_ode")
-NODE = r"C:\Users\Darwin\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe"
+HTML = Path(__file__).resolve().parent.parent / "lab03-tanque-newton-rc.html"
+TMP = Path(__file__).resolve().parent / "_tmp"
+NODE = shutil.which("node") or sys.exit("No se encontró node en el PATH")
 XLSX = TMP / "exportado3.xlsx"
 
 script = re.search(r"<script>(.*)</script>", HTML.read_text(encoding="utf-8"), re.S).group(1)

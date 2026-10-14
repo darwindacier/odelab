@@ -296,6 +296,22 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
   .chips{width:100%}
   .chip{flex:1}
   .pista{max-width:88%; font-size:.72rem}
+  .lienzo{flex:0 0 auto; height:68vh; min-height:380px}
+  .marca-lab{flex-wrap:wrap; row-gap:8px}
+  .formula{font-size:.85rem; max-width:100%; overflow-x:auto}
+}
+@media (max-width:620px){
+  .sub-lab{display:none}
+  h1{font-size:.9rem}
+  .chips{gap:5px}
+  .chip{min-width:0; padding:4px 8px}
+  .chip span{font-size:.56rem}
+  .chip b{font-size:.76rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .chips{display:grid; grid-template-columns:repeat(3,minmax(0,1fr))}
+  .marca-lab > div{flex:1 1 180px; min-width:0}
+  .vistas{flex:0 0 auto; min-height:0}
+  #cvFen{flex:0 0 auto; height:340px}
+  #cvGraf{flex:0 0 auto; height:600px}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s !important; transition-duration:.001s !important}
@@ -316,8 +332,8 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
     <div class="chip"><span>&omega;&#8320;</span><b id="eW0">—</b></div>
     <div class="chip"><span>&zeta;</span><b id="eZeta">—</b></div>
     <div class="chip"><span>Régimen</span><b id="eRegimen">—</b></div>
-    <div class="chip"><span>Amplitud medida</span><b id="eAmed">—</b></div>
-    <div class="chip"><span>Amplitud del modelo</span><b id="eAmod">—</b></div>
+    <div class="chip"><span title="Amplitud medida en el fenómeno">Amp. medida</span><b id="eAmed">—</b></div>
+    <div class="chip"><span title="Amplitud que predice el modelo">Amp. modelo</span><b id="eAmod">—</b></div>
     <div class="chip destaca"><span>Discrepancia</span><b id="eDisc">—</b></div>
     <button class="mini" id="btnGuia" style="flex:0 0 auto">Guía</button>
   </div>
@@ -505,6 +521,35 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
       </div>
     </div>
   </aside>
+</div>
+
+<div class="avisos" id="avisos"></div>
+
+<div class="bienvenida oculto" id="bienvenida">
+  <div class="caja">
+    <h3>Laboratorio 02 · Resorte, amortiguador y circuito RLC</h3>
+    <p>
+      Un mismo modelo de segundo orden gobierna dos fenómenos que parecen distintos. Aquí los ve
+      funcionar a la vez, mueve sus parámetros y comprueba si la ecuación ideal alcanza para
+      explicar lo que ocurre de verdad.
+    </p>
+    <div class="pasos">
+      <div class="paso"><b>1 · Manipule el fenómeno</b>
+        <span>Masa, amortiguamiento, rigidez, fuerza y frecuencia. Observe el resorte y el circuito
+        mientras cambian.</span></div>
+      <div class="paso"><b>2 · Contraste con el modelo</b>
+        <span>La curva dorada es el fenómeno; la cian, la ecuación ideal. La discrepancia de arriba
+        mide la diferencia.</span></div>
+      <div class="paso"><b>3 · Diagnostique</b>
+        <span>Active un efecto oculto o el modo examen y deduzca, con las gráficas, qué supuesto del
+        modelo falla.</span></div>
+    </div>
+    <div class="fila">
+      <button id="btnEmpezar" class="activo">Empezar el laboratorio</button>
+      <button id="btnNoVer" class="mini" style="flex:0 0 auto">No volver a mostrarla</button>
+    </div>
+    <div class="atajos">Atajos: espacio = pausar · R = reiniciar · P = panel · G = guardar gráficas · Esc = cerrar</div>
+  </div>
 </div>
 
 <script>
@@ -830,6 +875,229 @@ function diagnosticar(P) {
 }
 /* ==== MATH:END ==== */
 
+/* ==== GRAF:BEGIN ==== ejes, cuadrícula, leyendas y geometría comunes a las gráficas */
+const FUENTE = "'Segoe UI', Inter, system-ui, -apple-system, sans-serif";
+const MONO = 'ui-monospace, SFMono-Regular, Consolas, monospace';
+const TINTA = {
+  fen: '#ffd166', mod: '#22d3ee', dif: '#f87171', vel: '#4ade80', ref: 'rgba(226,232,240,.6)',
+  eje: 'rgba(148,163,184,.5)', reja: 'rgba(148,163,184,.09)', cero: 'rgba(148,163,184,.3)',
+  texto: 'rgba(203,213,225,.88)', tenue: 'rgba(148,163,184,.75)', titulo: '#e8eef8'
+};
+
+/* Geometría única de las dos gráficas: la usan el dibujo y el ratón. */
+function cajasGraficas(W, H) {
+  if (W < 620) {
+    // pantalla estrecha: una gráfica sobre la otra, con la leyenda en su propio renglón
+    const mitad = Math.round(H / 2);
+    return {
+      izq: { x0: 50, x1: W - 14, y1: 60, y0: mitad - 32, tituloY: 22, leyendaY: 44 },
+      der: { x0: 50, x1: W - 14, y1: mitad + 58, y0: H - 30, tituloY: mitad + 20, leyendaY: mitad + 42 }
+    };
+  }
+  const corte = Math.round(W * 0.585);
+  return {
+    izq: { x0: 56, x1: corte - 18, y1: 40, y0: H - 30, tituloY: 24, leyendaY: 20 },
+    der: { x0: corte + 50, x1: W - 16, y1: 40, y0: H - 30, tituloY: 24, leyendaY: 20 }
+  };
+}
+
+function pasoBonito(rango, n) {
+  const bruto = rango / Math.max(1, n);
+  const p = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const f = bruto / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+function marcasEje(a, b, n) {
+  if (!(b > a) || !Number.isFinite(a) || !Number.isFinite(b)) return { vals: [], paso: 1 };
+  const paso = pasoBonito(b - a, n), vals = [];
+  for (let v = Math.ceil(a / paso - 1e-9) * paso; v <= b + paso * 1e-9 && vals.length < 40; v += paso) {
+    vals.push(Math.abs(v) < paso * 1e-9 ? 0 : v);
+  }
+  return { vals, paso };
+}
+function textoMarca(v, paso) {
+  if (v !== 0 && (Math.abs(v) >= 1e5 || Math.abs(v) < 1e-3)) return v.toExponential(1).replace('-', '−');
+  const dec = Math.max(0, Math.min(6, -Math.floor(Math.log10(paso) + 1e-9)));
+  return v.toFixed(dec).replace('-', '−');
+}
+/* Rango con margen; nunca degenerado. */
+function rangoCon(lo, hi, margen = 0.08) {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [0, 1];
+  if (hi - lo < 1e-12) { const d = Math.max(Math.abs(hi) * 0.1, 1e-3); return [lo - d, hi + d]; }
+  const d = (hi - lo) * margen;
+  return [lo - d, hi + d];
+}
+
+/* Dibuja el marco (cuadrícula, ejes, números, títulos) y devuelve las escalas X(v), Y(v). */
+function marcoGrafica(ctx, c, rx, ry, opc = {}) {
+  const X = v => c.x0 + (c.x1 - c.x0) * (v - rx[0]) / Math.max(1e-12, rx[1] - rx[0]);
+  const Y = v => c.y0 - (c.y0 - c.y1) * (v - ry[0]) / Math.max(1e-12, ry[1] - ry[0]);
+  const mx = marcasEje(rx[0], rx[1], Math.max(2, Math.floor((c.x1 - c.x0) / 78)));
+  const my = opc.sinNumerosY ? { vals: [], paso: 1 } : marcasEje(ry[0], ry[1], Math.max(2, Math.floor((c.y0 - c.y1) / 40)));
+  ctx.save();
+  ctx.fillStyle = 'rgba(148,163,184,.025)';
+  ctx.fillRect(c.x0, c.y1, c.x1 - c.x0, c.y0 - c.y1);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = TINTA.reja;
+  ctx.beginPath();
+  for (const v of mx.vals) { const x = Math.round(X(v)) + 0.5; ctx.moveTo(x, c.y1); ctx.lineTo(x, c.y0); }
+  for (const v of my.vals) { const y = Math.round(Y(v)) + 0.5; ctx.moveTo(c.x0, y); ctx.lineTo(c.x1, y); }
+  ctx.stroke();
+  if (ry[0] < 0 && ry[1] > 0) {
+    const y = Math.round(Y(0)) + 0.5;
+    ctx.strokeStyle = TINTA.cero; ctx.beginPath(); ctx.moveTo(c.x0, y); ctx.lineTo(c.x1, y); ctx.stroke();
+  }
+  ctx.strokeStyle = TINTA.eje;
+  ctx.beginPath();
+  ctx.moveTo(c.x0 + 0.5, c.y1); ctx.lineTo(c.x0 + 0.5, c.y0 + 0.5); ctx.lineTo(c.x1, c.y0 + 0.5);
+  for (const v of mx.vals) { const x = Math.round(X(v)) + 0.5; ctx.moveTo(x, c.y0); ctx.lineTo(x, c.y0 + 4); }
+  for (const v of my.vals) { const y = Math.round(Y(v)) + 0.5; ctx.moveTo(c.x0 - 4, y); ctx.lineTo(c.x0, y); }
+  ctx.stroke();
+  // el título del eje x ocupa el extremo derecho de la fila de números; los que chocarían se omiten
+  ctx.font = `italic 11px ${FUENTE}`;
+  const anchoEjeX = opc.ejeX ? ctx.measureText(opc.ejeX).width + 10 : 0;
+  ctx.fillStyle = TINTA.texto; ctx.textBaseline = 'top';
+  if (opc.ejeX) { ctx.textAlign = 'right'; ctx.fillText(opc.ejeX, c.x1, c.y0 + 7); }
+  if (opc.ejeY) { ctx.textAlign = 'left'; ctx.fillText(opc.ejeY, c.x0 + 7, c.y1 + 6); }
+  ctx.fillStyle = TINTA.tenue; ctx.font = `10px ${MONO}`;
+  ctx.textAlign = 'center';
+  for (const v of mx.vals) {
+    const s = textoMarca(v, mx.paso), x = X(v), w = ctx.measureText(s).width;
+    if (x + w / 2 > c.x1 - anchoEjeX || x - w / 2 < c.x0 - 22) continue;
+    ctx.fillText(s, x, c.y0 + 7);
+  }
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const v of my.vals) {
+    const y = Y(v);
+    if (y > c.y0 - 6 && mx.vals.length && Math.abs(X(mx.vals[0]) - c.x0) < 14) continue;
+    ctx.fillText(textoMarca(v, my.paso), c.x0 - 7, y);
+  }
+  if (opc.titulo) {
+    ctx.font = `600 12.5px ${FUENTE}`; ctx.fillStyle = TINTA.titulo;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(opc.titulo, Math.max(12, c.x0 - 40), c.tituloY);
+  }
+  ctx.restore();
+  return { X, Y };
+}
+
+/* Recorta el dibujo a la caja de la gráfica; devolver con ctx.restore(). */
+function recortar(ctx, c) {
+  ctx.save();
+  ctx.beginPath(); ctx.rect(c.x0 + 1, c.y1, c.x1 - c.x0 - 1, c.y0 - c.y1); ctx.clip();
+}
+
+/* Polilínea de una serie; f devuelve [x, y] en píxeles. */
+function trazarSerie(ctx, datos, f, color, ancho, linea) {
+  if (!datos.length) return;
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = ancho; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  if (linea) ctx.setLineDash(linea);
+  ctx.beginPath();
+  datos.forEach((d, i) => { const [x, y] = f(d); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+  ctx.stroke();
+  ctx.restore();
+}
+
+function punto(ctx, x, y, r, color, borde) {
+  ctx.save();
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  if (borde) { ctx.strokeStyle = borde; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.restore();
+}
+
+/* Leyenda en una fila, alineada a la derecha de xDer sobre la línea base y. */
+function leyenda(ctx, items, xDer, y) {
+  ctx.save();
+  ctx.font = `11px ${FUENTE}`; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  let x = xDer;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    x -= ctx.measureText(it.texto).width;
+    ctx.fillStyle = TINTA.texto; ctx.fillText(it.texto, x, y);
+    x -= 22;
+    if (it.punto) punto(ctx, x + 9, y, 3.5, it.color);
+    else {
+      ctx.strokeStyle = it.color; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+      ctx.setLineDash(it.linea || []);
+      ctx.beginPath(); ctx.moveTo(x + 1, y); ctx.lineTo(x + 17, y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    x -= 14;
+  }
+  ctx.restore();
+}
+
+/* Recuadro con filas de texto coloreadas (lectura del cursor, resultados de ajustes). */
+function recuadro(ctx, filas, x, y, xMax, alinearDerecha) {
+  ctx.save();
+  ctx.font = `11px ${MONO}`;
+  const ancho = Math.max(...filas.map(f => ctx.measureText(f.texto).width)) + 20;
+  const alto = filas.length * 16 + 10;
+  const bx = alinearDerecha ? x - ancho : Math.min(x, xMax - ancho);
+  ctx.fillStyle = 'rgba(7,11,24,.93)'; ctx.strokeStyle = 'rgba(148,163,184,.3)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx + 0.5, y + 0.5, ancho, alto, 7); else ctx.rect(bx + 0.5, y + 0.5, ancho, alto);
+  ctx.fill(); ctx.stroke();
+  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  filas.forEach((f, i) => { ctx.fillStyle = f.color || TINTA.texto; ctx.fillText(f.texto, bx + 10, y + 7 + i * 16); });
+  ctx.restore();
+}
+
+/* Mensaje centrado en una caja vacía. */
+function mensajeVacio(ctx, c, texto) {
+  ctx.save();
+  ctx.font = `12px ${FUENTE}`; ctx.fillStyle = TINTA.tenue; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(texto, (c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2);
+  ctx.restore();
+}
+
+/* Interacción común: rueda = zoom anclado al puntero, arrastre = desplazar, doble clic = vista completa. */
+function instalarInteraccion(cv, graf, ventana, redibujar) {
+  const cajaIzq = () => { const r = cv.getBoundingClientRect(); return { r, c: cajasGraficas(r.width, r.height).izq }; };
+  cv.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const { r, c } = cajaIzq();
+    const { ta, tb } = ventana();
+    const frac = Math.max(0, Math.min(1, (e.clientX - r.left - c.x0) / Math.max(1, c.x1 - c.x0)));
+    const tAncla = ta + frac * (tb - ta);
+    graf.zoom = Math.max(1, Math.min(40, graf.zoom * (e.deltaY > 0 ? 1 / 1.15 : 1.15)));
+    // el instante que estaba bajo el puntero sigue bajo el puntero
+    if (sim.hist.length > 1) {
+      const t0 = sim.hist[0][0], total = Math.max(1e-9, sim.hist[sim.hist.length - 1][0] - t0);
+      const centro = tAncla + (0.5 - frac) * (total / graf.zoom);
+      graf.cx = Math.max(0, Math.min(1, (centro - t0) / total));
+    }
+    redibujar();
+  }, { passive: false });
+  cv.addEventListener('pointerdown', (e) => {
+    graf.arrastrando = true;
+    graf.ultimoX = e.clientX;
+    cv.setPointerCapture(e.pointerId);
+    cv.style.cursor = 'grabbing';
+  });
+  cv.addEventListener('pointermove', (e) => {
+    const { r, c } = cajaIzq();
+    if (graf.arrastrando) {
+      graf.cx = Math.max(0, Math.min(1, graf.cx - (e.clientX - graf.ultimoX) / Math.max(1, c.x1 - c.x0) / graf.zoom));
+      graf.ultimoX = e.clientX;
+    } else {
+      const { ta, tb } = ventana();
+      const fx = (e.clientX - r.left - c.x0) / Math.max(1, c.x1 - c.x0);
+      const fy = e.clientY - r.top;
+      graf.cursor = fx >= 0 && fx <= 1 && fy >= c.y1 && fy <= c.y0 ? ta + fx * (tb - ta) : null;
+      cv.style.cursor = graf.cursor === null ? 'default' : 'crosshair';
+    }
+    redibujar();
+  });
+  const soltar = () => { graf.arrastrando = false; cv.style.cursor = graf.cursor === null ? 'default' : 'crosshair'; };
+  cv.addEventListener('pointerup', soltar);
+  cv.addEventListener('pointercancel', soltar);
+  cv.addEventListener('pointerleave', () => { soltar(); graf.cursor = null; redibujar(); });
+  cv.addEventListener('dblclick', () => { graf.zoom = 1; graf.cx = 0.5; redibujar(); });
+}
+/* ==== GRAF:END ==== */
+
 /* ---------------- aplicación ---------------- */
 const P = { fenomeno: 'resorte', m: 1, c: 0.5, k: 10, F0: 2, w: 2, x0: 1, v0: 0,
             efecto: 'ninguno', Fc: 0.35, k3rel: -0.25, c2rel: 0.6 };
@@ -1102,8 +1370,8 @@ function dibujarFenomeno() {
   ctxFen.clearRect(0, 0, W, H);
   if (P.fenomeno === 'resorte') dibujarResorte(W, H); else dibujarRLC(W, H);
   ctxFen.fillStyle = 'rgba(148,163,184,.85)';
-  ctxFen.font = '12px Inter, sans-serif';
-  ctxFen.fillText('FENÓMENO (con los efectos reales)', 14, H - 12);
+  ctxFen.font = '12px "Segoe UI", Inter, system-ui, sans-serif';
+  if (W >= 620) ctxFen.fillText('FENÓMENO (con los efectos reales)', 14, H - 12);
 }
 
 /* ---------- panel de gráficas interactivo ---------- */
@@ -1122,24 +1390,19 @@ function ventanaTiempo() {
 
 /* Ajuste del decaimiento: ln(A_n) contra n. Devuelve zeta estimado y la recta. */
 function ajusteDecaimiento() {
-  const picos = picosDecrecientes(sim.hist.map(h => [h[0], h[1]]));
-  if (picos.length < 4) return null;
   const idx = [], ln = [], tiempos = [];
-  for (let i = 0; i < picos.length; i++) {
-    const n = picos[i];
-    if (n <= 1e-6) continue;
+  for (let i = 1; i < sim.hist.length - 1; i++) {
+    const a = Math.abs(sim.hist[i - 1][1]), n = Math.abs(sim.hist[i][1]), c = Math.abs(sim.hist[i + 1][1]);
+    if (!(n > a && n >= c) || n <= 1e-6) continue;
     idx.push(idx.length);
     ln.push(Math.log(n));
-    tiempos.push(i);
+    tiempos.push(sim.hist[i][0]);
   }
   if (idx.length < 4) return null;
   const { a, b } = ajusteLineal(idx, ln);
-  // separación temporal media entre picos → periodo amortiguado
-  let suma = 0, cuenta = 0;
-  for (let i = 1; i < tiempos.length; i++) { suma += tiempos[i] - tiempos[i - 1]; cuenta++; }
-  const Td = cuenta ? suma / cuenta : 0;
+  // la envolvente decae como e^(−ζ ω₀ t): la pendiente de ln(Aₙ) contra el instante del pico es −ζ ω₀
   const cl = clasificar(P.m, P.c, P.k);
-  const zetaEst = Td > 0 ? -a / (cl.w0 * Td) : NaN;
+  const zetaEst = -ajusteLineal(tiempos, ln).a / cl.w0;
   // bondad del ajuste exponencial
   const r2ajuste = r2(idx, ln);
   return { a, b, zetaEst, zetaTeo: cl.zeta, r2: r2ajuste, n: idx.length, A0: Math.exp(b) };
@@ -1149,16 +1412,10 @@ function dibujarGraficas() {
   const r = cGraf.parentElement.getBoundingClientRect();
   const W = r.width, H = r.height;
   ctxGraf.clearRect(0, 0, W, H);
-  const corte = W * 0.585;
+  const { izq: ci, der: cd } = cajasGraficas(W, H);
   const { ta, tb } = ventanaTiempo();
-  const xIzq = 46, xDer = corte - 16, yTop = 26, yInf = H - 26;
-  const y0 = (yTop + yInf) / 2;
-  const px = (t) => xIzq + (xDer - xIzq) * ((t - ta) / Math.max(1e-9, tb - ta));
-
-  ctxGraf.strokeStyle = 'rgba(148,163,184,.35)'; ctxGraf.lineWidth = 1;
-  ctxGraf.beginPath(); ctxGraf.moveTo(xIzq, yTop); ctxGraf.lineTo(xIzq, yInf); ctxGraf.lineTo(xDer, yInf); ctxGraf.stroke();
-  ctxGraf.strokeStyle = 'rgba(148,163,184,.22)';
-  ctxGraf.beginPath(); ctxGraf.moveTo(xIzq, y0); ctxGraf.lineTo(xDer, y0); ctxGraf.stroke();
+  const resorte = P.fenomeno === 'resorte';
+  const nomX = resorte ? 'x (m)' : 'q (mC)', nomV = resorte ? 'v (m/s)' : 'i (mA)';
 
   const visibles = sim.hist.filter(h => h[0] >= ta - 0.05 && h[0] <= tb + 0.05);
   let amax = 1e-9, vmax = 1e-9, dmax = 1e-9;
@@ -1167,203 +1424,168 @@ function dibujarGraficas() {
     vmax = Math.max(vmax, Math.abs(h[2]), Math.abs(h[4]));
     dmax = Math.max(dmax, Math.abs(h[1] - h[3]));
   }
-  const esc = (yInf - yTop) * 0.44 / amax;
-  ctxGraf.fillStyle = 'rgba(148,163,184,.8)'; ctxGraf.font = '10px ui-monospace, monospace';
-  ctxGraf.fillText(`${amax.toFixed(2)}`, 6, y0 - (yInf - yTop) * 0.44 + 4);
-  ctxGraf.fillText('0', 32, y0 + 4);
-  ctxGraf.fillText(`-${amax.toFixed(2)}`, 4, y0 + (yInf - yTop) * 0.44 + 4);
-  ctxGraf.fillText(`${ta.toFixed(1)} s`, xIzq, yInf + 14);
-  ctxGraf.fillText(`${tb.toFixed(1)} s`, xDer - 32, yInf + 14);
+  const lim = amax * 1.12;
+  const { X, Y } = marcoGrafica(ctxGraf, ci, [ta, tb], [-lim, lim],
+                                { titulo: 'Fenómeno frente al modelo', ejeX: 't (s)', ejeY: nomX });
+  // las series de escala propia (velocidad, diferencia) se reescalan a la banda ±lim
+  const otraEscala = (v, max) => Y(v / max * lim * 0.8);
 
-  const trazar = (f, color, ancho, escala, linea) => {
-    if (!visibles.length) return;
-    ctxGraf.strokeStyle = color; ctxGraf.lineWidth = ancho;
-    if (linea) ctxGraf.setLineDash(linea);
-    ctxGraf.beginPath();
-    visibles.forEach((h, i) => {
-      const X = px(h[0]), Y = y0 - f(h) * escala;
-      if (i === 0) ctxGraf.moveTo(X, Y); else ctxGraf.lineTo(X, Y);
-    });
-    ctxGraf.stroke();
-    if (linea) ctxGraf.setLineDash([]);
-  };
-
-  if (graf.verDif) trazar(h => h[1] - h[3], 'rgba(248,113,113,.95)', 1.3, (yInf - yTop) * 0.44 / dmax);
-  if (graf.verMod) trazar(h => h[3], 'rgba(0,242,254,.9)', 1.7, esc);
-  if (graf.verFen) trazar(h => h[1], '#ffd166', 1.9, esc);
-  if (graf.verVel) trazar(h => h[2], 'rgba(74,222,128,.85)', 1.2, (yInf - yTop) * 0.30 / vmax);
-
-  // régimen permanente teórico (solución forzada del modelo)
+  recortar(ctxGraf, ci);
+  if (graf.verDif) trazarSerie(ctxGraf, visibles, h => [X(h[0]), otraEscala(h[1] - h[3], dmax)], TINTA.dif, 1.3);
+  if (graf.verVel) trazarSerie(ctxGraf, visibles, h => [X(h[0]), otraEscala(h[2], vmax)], TINTA.vel, 1.2, [2, 3]);
   const cl = clasificar(P.m, P.c, P.k);
-  if (graf.verMod && P.F0 > 0 && cl.zeta > 1e-6) {
+  const conPermanente = graf.verMod && P.F0 > 0 && cl.zeta > 1e-6;
+  if (conPermanente) {
     const { A, fase } = amplitudEstacionaria(P.m, P.c, P.k, P.F0, P.w);
-    trazar(h => A * Math.cos(P.w * h[0] - fase), 'rgba(226,232,240,.5)', 1.2, esc, [5, 4]);
+    trazarSerie(ctxGraf, visibles, h => [X(h[0]), Y(A * Math.cos(P.w * h[0] - fase))], TINTA.ref, 1.1, [5, 4]);
   }
-
-  // picos que analiza el clasificador
+  if (graf.verMod) trazarSerie(ctxGraf, visibles, h => [X(h[0]), Y(h[3])], 'rgba(34,211,238,.55)', 4.2);
+  if (graf.verFen) trazarSerie(ctxGraf, visibles, h => [X(h[0]), Y(h[1])], TINTA.fen, 2.2);
   if (graf.verPicos) {
-    ctxGraf.fillStyle = 'rgba(255,209,102,.95)';
     for (let i = 1; i < visibles.length - 1; i++) {
       const a = Math.abs(visibles[i - 1][1]), b = Math.abs(visibles[i][1]), c = Math.abs(visibles[i + 1][1]);
-      if (b > a && b >= c) {
-        ctxGraf.beginPath(); ctxGraf.arc(px(visibles[i][0]), y0 - visibles[i][1] * esc, 3, 0, Math.PI * 2); ctxGraf.fill();
-      }
+      if (b > a && b >= c) punto(ctxGraf, X(visibles[i][0]), Y(visibles[i][1]), 3.2, TINTA.fen, 'rgba(5,9,20,.9)');
     }
+  }
+  ctxGraf.restore();
+
+  const items = [];
+  if (graf.verFen) items.push({ texto: 'Fenómeno', color: TINTA.fen });
+  if (graf.verMod) items.push({ texto: 'Modelo', color: TINTA.mod });
+  if (conPermanente) items.push({ texto: 'Permanente', color: TINTA.ref, linea: [4, 3] });
+  if (graf.verVel) items.push({ texto: 'Velocidad*', color: TINTA.vel, linea: [2, 3] });
+  if (graf.verDif) items.push({ texto: 'Diferencia*', color: TINTA.dif });
+  leyenda(ctxGraf, items, ci.x1, ci.leyendaY);
+  if (graf.verVel || graf.verDif) {
+    ctxGraf.font = `10px ${FUENTE}`; ctxGraf.fillStyle = TINTA.tenue; ctxGraf.textAlign = 'right';
+    ctxGraf.fillText('* escala propia', ci.x1, ci.leyendaY + 14); ctxGraf.textAlign = 'left';
+  }
+  if (graf.zoom > 1.01) {
+    ctxGraf.font = `10px ${FUENTE}`; ctxGraf.fillStyle = TINTA.tenue;
+    ctxGraf.fillText(`zoom ×${graf.zoom.toFixed(1)} · doble clic: vista completa`, ci.x0 + 8, ci.y0 - 8);
   }
 
   // cursor de lectura
   if (graf.cursor !== null && graf.cursor >= ta && graf.cursor <= tb) {
-    const X = px(graf.cursor);
-    ctxGraf.strokeStyle = 'rgba(226,232,240,.45)'; ctxGraf.lineWidth = 1;
-    ctxGraf.beginPath(); ctxGraf.moveTo(X, yTop); ctxGraf.lineTo(X, yInf); ctxGraf.stroke();
+    const Xc = X(graf.cursor);
+    ctxGraf.save();
+    ctxGraf.strokeStyle = 'rgba(226,232,240,.4)'; ctxGraf.setLineDash([3, 3]);
+    ctxGraf.beginPath(); ctxGraf.moveTo(Xc + 0.5, ci.y1); ctxGraf.lineTo(Xc + 0.5, ci.y0); ctxGraf.stroke();
+    ctxGraf.restore();
     let mejor = null;
     for (const h of sim.hist) if (!mejor || Math.abs(h[0] - graf.cursor) < Math.abs(mejor[0] - graf.cursor)) mejor = h;
     if (mejor) {
-      ctxGraf.fillStyle = 'rgba(8,13,28,.9)';
-      const caja = 118, cajaX = Math.min(X + 8, xDer - caja), cajaY = yTop + 4;
-      ctxGraf.fillRect(cajaX, cajaY, caja, 62);
-      ctxGraf.strokeStyle = 'rgba(148,163,184,.35)'; ctxGraf.strokeRect(cajaX, cajaY, caja, 62);
-      ctxGraf.fillStyle = '#e2e8f0'; ctxGraf.font = '10px ui-monospace, monospace';
-      ctxGraf.fillText(`t = ${mejor[0].toFixed(3)} s`, cajaX + 6, cajaY + 14);
-      ctxGraf.fillStyle = '#ffd166';
-      ctxGraf.fillText(`fen = ${mejor[1].toFixed(4)}`, cajaX + 6, cajaY + 27);
-      ctxGraf.fillStyle = '#00f2fe';
-      ctxGraf.fillText(`mod = ${mejor[3].toFixed(4)}`, cajaX + 6, cajaY + 40);
-      ctxGraf.fillStyle = '#f87171';
-      ctxGraf.fillText(`dif = ${(mejor[1] - mejor[3]).toExponential(2)}`, cajaX + 6, cajaY + 53);
+      punto(ctxGraf, X(mejor[0]), Y(mejor[1]), 4, TINTA.fen, '#050914');
+      punto(ctxGraf, X(mejor[0]), Y(mejor[3]), 4, TINTA.mod, '#050914');
+      recuadro(ctxGraf, [
+        { texto: `t   = ${mejor[0].toFixed(3)} s`, color: TINTA.titulo },
+        { texto: `fen = ${mejor[1].toFixed(4)}`, color: TINTA.fen },
+        { texto: `mod = ${mejor[3].toFixed(4)}`, color: TINTA.mod },
+        { texto: `dif = ${(mejor[1] - mejor[3]).toExponential(2)}`, color: TINTA.dif }
+      ], Xc + 12, ci.y1 + 8, ci.x1);
     }
   }
 
-  ctxGraf.fillStyle = 'rgba(226,232,240,.85)'; ctxGraf.font = '12px Inter, sans-serif';
-  ctxGraf.fillText('Fenómeno frente al modelo (rueda: zoom · arrastre: desplazar)', xIzq, 16);
-
   // ---------------- panel derecho ----------------
-  const gx0 = corte + 40, gx1 = W - 16, gy0 = H - 26, gy1 = 30;
-  ctxGraf.strokeStyle = 'rgba(148,163,184,.35)'; ctxGraf.lineWidth = 1;
-  ctxGraf.beginPath();
-  ctxGraf.moveTo(gx0, gy0); ctxGraf.lineTo(gx1, gy0);
-  ctxGraf.moveTo(gx0, gy0); ctxGraf.lineTo(gx0, gy1);
-  ctxGraf.stroke();
-  const titulos = { resonancia: 'Amplitud frente a ω', fase: 'Retrato de fase (v frente a x)',
-                    energia: 'Energía del sistema', decaimiento: 'ln(Aₙ) y ajuste exponencial' };
-  ctxGraf.fillStyle = 'rgba(226,232,240,.85)';
-  ctxGraf.fillText(titulos[graf.panel], gx0, 16);
+  const titulos = { resonancia: 'Curva de resonancia', fase: 'Retrato de fase',
+                    energia: 'Energía del sistema', decaimiento: 'Decaimiento: ln Aₙ y ajuste' };
+  const titulo = titulos[graf.panel];
 
   if (graf.panel === 'resonancia') {
-    if (sim.barrido.length) {
-      const wMax = sim.barrido[sim.barrido.length - 1].w;
-      let aMax = 1e-9;
-      for (const b of sim.barrido) aMax = Math.max(aMax, b.A);
-      ctxGraf.strokeStyle = '#00f2fe'; ctxGraf.lineWidth = 1.8;
-      ctxGraf.beginPath();
-      sim.barrido.forEach((b, k) => {
-        const X = gx0 + (gx1 - gx0) * (b.w / wMax), Y = gy0 - (gy0 - gy1) * (b.A / aMax);
-        if (k === 0) ctxGraf.moveTo(X, Y); else ctxGraf.lineTo(X, Y);
-      });
-      ctxGraf.stroke();
-      const pm = sim.barrido.reduce((a, b) => (b.A > a.A ? b : a));
-      const Xm = gx0 + (gx1 - gx0) * (pm.w / wMax);
-      ctxGraf.fillStyle = '#ffd166';
-      ctxGraf.beginPath(); ctxGraf.arc(Xm, gy0 - (gy0 - gy1) * (pm.A / aMax), 4.5, 0, Math.PI * 2); ctxGraf.fill();
-      ctxGraf.font = '10px ui-monospace, monospace';
-      ctxGraf.fillText(`máx medido ω=${pm.w.toFixed(2)}`, Xm - 46, gy0 - (gy0 - gy1) * (pm.A / aMax) - 8);
-      const wr2 = frecuenciaResonancia(P.m, P.c, P.k);
-      if (wr2) {
-        const Xr = gx0 + (gx1 - gx0) * (wr2 / wMax);
-        ctxGraf.setLineDash([4, 4]); ctxGraf.strokeStyle = 'rgba(226,232,240,.55)';
-        ctxGraf.beginPath(); ctxGraf.moveTo(Xr, gy0); ctxGraf.lineTo(Xr, gy1); ctxGraf.stroke();
-        ctxGraf.setLineDash([]);
-        ctxGraf.fillText(`ω_r=${wr2.toFixed(2)}`, Xr - 24, gy1 + 12);
-      }
-      const Xa = gx0 + (gx1 - gx0) * Math.min(1, P.w / wMax);
-      ctxGraf.fillStyle = '#4ade80';
-      ctxGraf.beginPath(); ctxGraf.arc(Xa, gy0 - 5, 4.5, 0, Math.PI * 2); ctxGraf.fill();
-      ctxGraf.fillText(`ω actual=${P.w.toFixed(2)}`, Xa - 32, gy0 + 14);
-    }
+    if (!sim.barrido.length) { marcoGrafica(ctxGraf, cd, [0, 1], [0, 1], { titulo }); return; }
+    const wMax = sim.barrido[sim.barrido.length - 1].w;
+    let aMax = 1e-9;
+    for (const b of sim.barrido) aMax = Math.max(aMax, b.A);
+    const g = marcoGrafica(ctxGraf, cd, [0, wMax], [0, aMax * 1.12],
+                           { titulo, ejeX: 'ω (rad/s)', ejeY: 'amplitud' });
+    recortar(ctxGraf, cd);
+    ctxGraf.save();
+    const grad = ctxGraf.createLinearGradient(0, cd.y1, 0, cd.y0);
+    grad.addColorStop(0, 'rgba(34,211,238,.22)'); grad.addColorStop(1, 'rgba(34,211,238,0)');
+    ctxGraf.fillStyle = grad; ctxGraf.beginPath(); ctxGraf.moveTo(g.X(sim.barrido[0].w), cd.y0);
+    for (const b of sim.barrido) ctxGraf.lineTo(g.X(b.w), g.Y(b.A));
+    ctxGraf.lineTo(g.X(wMax), cd.y0); ctxGraf.closePath(); ctxGraf.fill();
+    ctxGraf.restore();
+    trazarSerie(ctxGraf, sim.barrido, b => [g.X(b.w), g.Y(b.A)], TINTA.mod, 2);
+    const wr2 = frecuenciaResonancia(P.m, P.c, P.k);
+    if (wr2) trazarSerie(ctxGraf, [cd.y0, cd.y1], y => [g.X(wr2), y], TINTA.ref, 1, [4, 4]);
+    const Xa = g.X(Math.min(wMax, P.w));
+    trazarSerie(ctxGraf, [cd.y0, cd.y1], y => [Xa, y], 'rgba(74,222,128,.55)', 1);
+    const pm = sim.barrido.reduce((a, b) => (b.A > a.A ? b : a));
+    punto(ctxGraf, g.X(pm.w), g.Y(pm.A), 4.5, TINTA.fen, '#050914');
+    ctxGraf.restore();
+    recuadro(ctxGraf, [
+      { texto: `máx. medido ω = ${pm.w.toFixed(2)}`, color: TINTA.fen },
+      { texto: wr2 ? `ω_r del modelo = ${wr2.toFixed(2)}` : 'ω_r: no hay pico (ζ ≥ 0.71)', color: TINTA.ref },
+      { texto: `ω actual = ${P.w.toFixed(2)}`, color: TINTA.vel }
+    ], cd.x1 - 6, cd.y1 + 8, cd.x1, true);
   } else if (graf.panel === 'fase') {
-    let rMax = 1e-9;
-    for (const h of visibles) rMax = Math.max(rMax, Math.abs(h[1]), Math.abs(h[3]));
-    let vM = 1e-9;
-    for (const h of visibles) vM = Math.max(vM, Math.abs(h[2]), Math.abs(h[4]));
-    const cxf = (gx0 + gx1) / 2, cyf = (gy0 + gy1) / 2;
-    const ex = (gx1 - gx0) * 0.45 / rMax, ey = (gy0 - gy1) * 0.45 / vM;
-    ctxGraf.strokeStyle = 'rgba(148,163,184,.22)';
-    ctxGraf.beginPath(); ctxGraf.moveTo(gx0, cyf); ctxGraf.lineTo(gx1, cyf);
-    ctxGraf.moveTo(cxf, gy0); ctxGraf.lineTo(cxf, gy1); ctxGraf.stroke();
-    const trazaFase = (ix, iv, color, ancho) => {
-      ctxGraf.strokeStyle = color; ctxGraf.lineWidth = ancho;
-      ctxGraf.beginPath();
-      visibles.forEach((h, i) => {
-        const X = cxf + h[ix] * ex, Y = cyf - h[iv] * ey;
-        if (i === 0) ctxGraf.moveTo(X, Y); else ctxGraf.lineTo(X, Y);
-      });
-      ctxGraf.stroke();
-    };
-    trazaFase(3, 4, 'rgba(0,242,254,.65)', 1.4);
-    trazaFase(1, 2, '#ffd166', 1.7);
-    const ult = sim.hist[sim.hist.length - 1];
-    if (ult) {
-      ctxGraf.fillStyle = '#4ade80';
-      ctxGraf.beginPath(); ctxGraf.arc(cxf + ult[1] * ex, cyf - ult[2] * ey, 4, 0, Math.PI * 2); ctxGraf.fill();
+    let rMax = 1e-9, vM = 1e-9;
+    for (const h of visibles) {
+      rMax = Math.max(rMax, Math.abs(h[1]), Math.abs(h[3]));
+      vM = Math.max(vM, Math.abs(h[2]), Math.abs(h[4]));
     }
-    ctxGraf.fillStyle = 'rgba(148,163,184,.8)'; ctxGraf.font = '10px ui-monospace, monospace';
-    ctxGraf.fillText(`x: ±${rMax.toFixed(2)}`, gx1 - 60, gy0 + 13);
-    ctxGraf.fillText(`v: ±${vM.toFixed(2)}`, gx0 + 4, gy1 + 2);
+    const g = marcoGrafica(ctxGraf, cd, [-rMax * 1.1, rMax * 1.1], [-vM * 1.1, vM * 1.1],
+                           { titulo, ejeX: nomX, ejeY: nomV });
+    const x0 = Math.round(g.X(0)) + 0.5;
+    trazarSerie(ctxGraf, [cd.y0, cd.y1], y => [x0, y], TINTA.cero, 1);
+    recortar(ctxGraf, cd);
+    trazarSerie(ctxGraf, visibles, h => [g.X(h[3]), g.Y(h[4])], 'rgba(34,211,238,.55)', 3.8);
+    trazarSerie(ctxGraf, visibles, h => [g.X(h[1]), g.Y(h[2])], TINTA.fen, 1.8);
+    const ult = sim.hist[sim.hist.length - 1];
+    if (ult) punto(ctxGraf, g.X(ult[1]), g.Y(ult[2]), 4.5, TINTA.vel, '#050914');
+    ctxGraf.restore();
+    leyenda(ctxGraf, [{ texto: 'Fenómeno', color: TINTA.fen }, { texto: 'Modelo', color: TINTA.mod },
+                      { texto: 'estado actual', color: TINTA.vel, punto: true }], cd.x1, cd.leyendaY);
   } else if (graf.panel === 'energia') {
     const energia = (h) => 0.5 * P.m * h[2] * h[2] + 0.5 * P.k * h[1] * h[1];
     const energiaM = (h) => 0.5 * P.m * h[4] * h[4] + 0.5 * P.k * h[3] * h[3];
     let eMax = 1e-9;
     for (const h of visibles) eMax = Math.max(eMax, energia(h), energiaM(h));
-    const trazaE = (f, color, ancho) => {
-      ctxGraf.strokeStyle = color; ctxGraf.lineWidth = ancho;
-      ctxGraf.beginPath();
-      visibles.forEach((h, i) => {
-        const X = gx0 + (gx1 - gx0) * ((h[0] - ta) / Math.max(1e-9, tb - ta));
-        const Y = gy0 - (gy0 - gy1) * (f(h) / eMax);
-        if (i === 0) ctxGraf.moveTo(X, Y); else ctxGraf.lineTo(X, Y);
-      });
-      ctxGraf.stroke();
-    };
-    trazaE(energiaM, 'rgba(0,242,254,.75)', 1.4);
-    trazaE(energia, '#ffd166', 1.7);
+    const g = marcoGrafica(ctxGraf, cd, [ta, tb], [0, eMax * 1.12],
+                           { titulo, ejeX: 't (s)', ejeY: resorte ? 'E (J)' : 'E' });
+    recortar(ctxGraf, cd);
+    trazarSerie(ctxGraf, visibles, h => [g.X(h[0]), g.Y(energiaM(h))], 'rgba(34,211,238,.55)', 3.8);
+    trazarSerie(ctxGraf, visibles, h => [g.X(h[0]), g.Y(energia(h))], TINTA.fen, 1.9);
+    ctxGraf.restore();
+    leyenda(ctxGraf, [{ texto: 'Fenómeno', color: TINTA.fen }, { texto: 'Modelo', color: TINTA.mod }], cd.x1, cd.leyendaY);
     const ult = sim.hist[sim.hist.length - 1];
     if (ult) {
       const ec = 0.5 * P.m * ult[2] * ult[2], ep = 0.5 * P.k * ult[1] * ult[1];
       const total = Math.max(1e-9, ec + ep);
-      ctxGraf.fillStyle = 'rgba(74,222,128,.9)';
-      ctxGraf.fillRect(gx0 + 6, gy1 + 4, 90 * (ec / total), 9);
-      ctxGraf.fillStyle = 'rgba(167,139,250,.9)';
-      ctxGraf.fillRect(gx0 + 6, gy1 + 16, 90 * (ep / total), 9);
-      ctxGraf.fillStyle = 'rgba(226,232,240,.85)'; ctxGraf.font = '10px ui-monospace, monospace';
-      ctxGraf.fillText(`cinética ${(ec / total * 100).toFixed(0)}% · potencial ${(ep / total * 100).toFixed(0)}%`,
-                       gx0 + 102, gy1 + 16);
+      const bx = cd.x1 - 168, by = cd.y1 + 10, ancho = 150;
+      ctxGraf.save();
+      ctxGraf.fillStyle = 'rgba(7,11,24,.93)'; ctxGraf.fillRect(bx - 10, by - 6, ancho + 20, 46);
+      ctxGraf.fillStyle = 'rgba(148,163,184,.18)'; ctxGraf.fillRect(bx, by + 4, ancho, 7);
+      ctxGraf.fillStyle = TINTA.vel; ctxGraf.fillRect(bx, by + 4, ancho * ec / total, 7);
+      ctxGraf.fillStyle = '#a78bfa'; ctxGraf.fillRect(bx + ancho * ec / total, by + 4, ancho * ep / total, 7);
+      ctxGraf.font = `10.5px ${FUENTE}`; ctxGraf.textBaseline = 'top';
+      ctxGraf.fillStyle = TINTA.vel; ctxGraf.fillText(`cinética ${(ec / total * 100).toFixed(0)} %`, bx, by + 18);
+      ctxGraf.fillStyle = '#a78bfa'; ctxGraf.textAlign = 'right';
+      ctxGraf.fillText(`potencial ${(ep / total * 100).toFixed(0)} %`, bx + ancho, by + 18);
+      ctxGraf.restore();
     }
-    ctxGraf.fillStyle = 'rgba(148,163,184,.8)'; ctxGraf.font = '10px ui-monospace, monospace';
-    ctxGraf.fillText(`E máx = ${eMax.toFixed(3)} J`, gx0 + 4, gy1 + 2);
   } else if (graf.panel === 'decaimiento') {
     const aj = graf.ajuste;
     if (!aj) {
-      ctxGraf.fillStyle = 'rgba(148,163,184,.9)'; ctxGraf.font = '11px Inter, sans-serif';
-      ctxGraf.fillText('Se necesitan al menos 4 picos: ponga F₀ = 0 y déjelo oscilar.', gx0 + 6, gy0 - 40);
-    } else {
-      const picos = picosDecrecientes(sim.hist.map(h => [h[0], h[1]])).filter(v => v > 1e-6);
-      const ln = picos.map(Math.log);
-      const nMax = Math.max(2, ln.length - 1);
-      const lo = Math.min(...ln), hi = Math.max(...ln);
-      const X = (i) => gx0 + (gx1 - gx0) * (i / nMax);
-      const Y = (v) => gy0 - (gy0 - gy1) * ((v - lo) / Math.max(1e-9, hi - lo)) * 0.9 - (gy0 - gy1) * 0.05;
-      ctxGraf.fillStyle = '#ffd166'; ctxGraf.font = '10px ui-monospace, monospace';
-      for (let i = 0; i < ln.length; i++) {
-        ctxGraf.beginPath(); ctxGraf.arc(X(i), Y(ln[i]), 3, 0, Math.PI * 2); ctxGraf.fill();
-      }
-      ctxGraf.strokeStyle = 'rgba(0,242,254,.9)'; ctxGraf.lineWidth = 1.5;
-      ctxGraf.beginPath(); ctxGraf.moveTo(X(0), Y(aj.b)); ctxGraf.lineTo(X(nMax), Y(aj.b + aj.a * nMax)); ctxGraf.stroke();
-      ctxGraf.fillStyle = 'rgba(226,232,240,.9)';
-      ctxGraf.fillText(`ζ estimado de los datos = ${aj.zetaEst.toFixed(4)}`, gx0 + 6, gy0 - 26);
-      ctxGraf.fillText(`ζ del modelo c/(2√(km)) = ${aj.zetaTeo.toFixed(4)}`, gx0 + 6, gy0 - 12);
-      ctxGraf.fillStyle = Math.abs(aj.zetaEst - aj.zetaTeo) / Math.max(1e-9, aj.zetaTeo) < 0.15 ? '#4ade80' : '#f87171';
-      ctxGraf.fillText(`R² del ajuste exponencial = ${aj.r2.toFixed(4)}`, gx0 + 6, gy1 + 12);
+      marcoGrafica(ctxGraf, cd, [0, 1], [0, 1], { titulo, sinNumerosY: true });
+      mensajeVacio(ctxGraf, cd, 'Se necesitan 4 picos: ponga F₀ = 0 y déjelo oscilar');
+      return;
     }
+    const ln = picosDecrecientes(sim.hist.map(h => [h[0], h[1]])).filter(v => v > 1e-6).map(Math.log);
+    const nMax = Math.max(2, ln.length - 1);
+    const [lo, hi] = rangoCon(Math.min(...ln, aj.b + aj.a * nMax), Math.max(...ln, aj.b), 0.1);
+    const g = marcoGrafica(ctxGraf, cd, [-0.5, nMax + 0.5], [lo, hi], { titulo, ejeX: 'n.º de pico', ejeY: 'ln Aₙ' });
+    recortar(ctxGraf, cd);
+    trazarSerie(ctxGraf, [0, nMax], n => [g.X(n), g.Y(aj.b + aj.a * n)], TINTA.mod, 1.8);
+    ln.forEach((v, i) => punto(ctxGraf, g.X(i), g.Y(v), 3.4, TINTA.fen, '#050914'));
+    ctxGraf.restore();
+    const bien = Math.abs(aj.zetaEst - aj.zetaTeo) / Math.max(1e-9, aj.zetaTeo) < 0.15;
+    recuadro(ctxGraf, [
+      { texto: `ζ de los datos = ${aj.zetaEst.toFixed(4)}`, color: TINTA.fen },
+      { texto: `ζ del modelo   = ${aj.zetaTeo.toFixed(4)}`, color: TINTA.mod },
+      { texto: `R² = ${aj.r2.toFixed(4)}`, color: bien ? TINTA.vel : TINTA.dif }
+    ], cd.x1 - 6, cd.y1 + 8, cd.x1, true);
   }
 }
 
@@ -1376,6 +1598,7 @@ function actualizarPanel() {
     const disc = Math.abs(med.am - med.amod) / Math.max(1e-9, med.amod) * 100;
     eAmed.textContent = med.am.toFixed(3);
     eAmod.textContent = med.amod.toFixed(3);
+    eDisc.textContent = disc.toFixed(1) + '%';
     document.getElementById('valorMod').textContent = med.amod.toFixed(3);
     const tope = Math.max(1e-9, med.am, med.amod);
     document.getElementById('barraFen').style.width = (med.am / tope * 100).toFixed(1) + '%';
@@ -1762,33 +1985,7 @@ document.querySelectorAll('button[data-panel]').forEach((b) => {
   });
 });
 
-cGraf.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  graf.zoom = Math.max(1, Math.min(40, graf.zoom * (e.deltaY > 0 ? 1 / 1.15 : 1.15)));
-  dibujar();
-}, { passive: false });
-
-cGraf.addEventListener('pointerdown', (e) => {
-  graf.arrastrando = true;
-  graf.ultimoX = e.clientX;
-  cGraf.setPointerCapture(e.pointerId);
-});
-cGraf.addEventListener('pointermove', (e) => {
-  const r = cGraf.getBoundingClientRect();
-  if (graf.arrastrando) {
-    const ancho = Math.max(1, r.width * 0.585 - 62);
-    graf.cx = Math.max(0, Math.min(1, graf.cx - (e.clientX - graf.ultimoX) / ancho / graf.zoom));
-    graf.ultimoX = e.clientX;
-  } else {
-    const { ta, tb } = ventanaTiempo();
-    const xIzq = 46, xDer = r.width * 0.585 - 16;
-    const frac = (e.clientX - r.left - xIzq) / Math.max(1, xDer - xIzq);
-    graf.cursor = frac >= 0 && frac <= 1 ? ta + frac * (tb - ta) : null;
-  }
-  dibujar();
-});
-cGraf.addEventListener('pointerup', () => { graf.arrastrando = false; });
-cGraf.addEventListener('pointerleave', () => { graf.arrastrando = false; graf.cursor = null; dibujar(); });
+instalarInteraccion(cGraf, graf, ventanaTiempo, dibujar);
 
 function exportarPNG(cv, ctx, nombre) {
   const r = cv.parentElement.getBoundingClientRect();
@@ -1801,7 +1998,7 @@ function exportarPNG(cv, ctx, nombre) {
   c2.drawImage(cv, 0, 0);
   c2.setTransform(1, 0, 0, 1, 0, 0);
   c2.fillStyle = 'rgba(226,232,240,.9)';
-  c2.font = `${13 * dpr}px Inter, sans-serif`;
+  c2.font = `${13 * dpr}px "Segoe UI", Inter, system-ui, sans-serif`;
   c2.fillText(nombre, 12 * dpr, copia.height - 12 * dpr);
   copia.toBlob((blob) => {
     if (blob) descargar(nombre.replace(/[^\w\-]+/g, '-').toLowerCase() + '.png', blob);
@@ -1848,14 +2045,17 @@ function fijarPausa(v) {
   btnPausa.textContent = v ? '▶ Seguir' : '⏸ Pausar';
   btnPausa.classList.toggle('oro', v);
 }
+let pausaManual = false;   // la pausa que pidió el estudiante no la levanta el portal
 btnPausa.addEventListener('click', () => {
   fijarPausa(!pausado);
+  pausaManual = pausado;
   avisar(pausado ? 'Simulación en pausa' : 'Simulación en marcha', pausado ? 'oro' : 'ok');
 });
 /* Si el laboratorio vive dentro del portal, el portal manda pausar al cambiar de pestaña. */
 window.addEventListener('message', (e) => {
+  if (e.source !== window.parent) return;
   if (e.data === 'pausar') fijarPausa(true);
-  else if (e.data === 'seguir') fijarPausa(false);
+  else if (e.data === 'seguir' && !pausaManual) fijarPausa(false);
 });
 
 function abrirGuia(abrir) {
@@ -1873,6 +2073,7 @@ document.getElementById('btnNoVer').addEventListener('click', () => {
 });
 window.addEventListener('keydown', (e) => {
   if (e.target.matches('input, select, textarea')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;   // no secuestrar Ctrl+P, Ctrl+F, Alt+←…
   if (e.key === 'Escape') abrirGuia(false);
   else if (e.key === ' ') { e.preventDefault(); btnPausa.click(); }
   else if (e.key === 'p' || e.key === 'P') btnPlegar.click();
@@ -1893,33 +2094,5 @@ try {
   if (localStorage.getItem('odelab02-guia') !== 'vista' && window.self === window.top) abrirGuia(true);
 } catch (e) { if (window.self === window.top) abrirGuia(true); }
 </script>
-<div class="avisos" id="avisos"></div>
-
-<div class="bienvenida oculto" id="bienvenida">
-  <div class="caja">
-    <h3>Laboratorio 02 · Resorte, amortiguador y circuito RLC</h3>
-    <p>
-      Un mismo modelo de segundo orden gobierna dos fenómenos que parecen distintos. Aquí los ve
-      funcionar a la vez, mueve sus parámetros y comprueba si la ecuación ideal alcanza para
-      explicar lo que ocurre de verdad.
-    </p>
-    <div class="pasos">
-      <div class="paso"><b>1 · Manipule el fenómeno</b>
-        <span>Masa, amortiguamiento, rigidez, fuerza y frecuencia. Observe el resorte y el circuito
-        mientras cambian.</span></div>
-      <div class="paso"><b>2 · Contraste con el modelo</b>
-        <span>La curva dorada es el fenómeno; la cian, la ecuación ideal. La discrepancia de arriba
-        mide la diferencia.</span></div>
-      <div class="paso"><b>3 · Diagnostique</b>
-        <span>Active un efecto oculto o el modo examen y deduzca, con las gráficas, qué supuesto del
-        modelo falla.</span></div>
-    </div>
-    <div class="fila">
-      <button id="btnEmpezar" class="activo">Empezar el laboratorio</button>
-      <button id="btnNoVer" class="mini" style="flex:0 0 auto">No volver a mostrarla</button>
-    </div>
-    <div class="atajos">Atajos: espacio = pausar · R = reiniciar · P = panel · G = guardar gráficas · Esc = cerrar</div>
-  </div>
-</div>
 </body>
 </html>

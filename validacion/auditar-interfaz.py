@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-BASE = Path(r"C:\Users\Darwin\Desktop\odelab")
+BASE = Path(__file__).resolve().parent.parent
 total_fallos = 0
 
 for ruta in sorted(BASE.glob("lab0*.html")):
