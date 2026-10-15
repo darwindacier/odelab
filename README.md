@@ -1,9 +1,9 @@
 # Laboratorio de Ecuaciones Diferenciales
 
-Laboratorios interactivos para la asignatura **Ecuaciones Diferenciales (O2017216)** de la
-Licenciatura en Matemáticas, Universidad del Magdalena. Cada laboratorio enfrenta un **fenómeno
-físico manipulable** con su **modelo matemático** y mide la diferencia entre ambos; los
-laboratorios 02 y 03 permiten además descargar los datos para analizarlos en Excel.
+Laboratorios interactivos para un curso de **Ecuaciones Diferenciales**. Cada laboratorio
+enfrenta un **fenómeno físico manipulable** con su **modelo matemático** y mide la diferencia
+entre ambos; los laboratorios 02 y 03 permiten además descargar los datos para analizarlos en
+Excel.
 
 Sitio publicado: https://darwindacier.github.io/odelab/
 
@@ -119,5 +119,5 @@ errores de interfaz ya corregidos. El archivo `.xlsx` exportado se abre y se rev
 
 ## Créditos
 
-**Dr. Darwin Peña González** — Departamento de Matemáticas y Estadística, Universidad del Magdalena.
+**Dr. Darwin Peña González**.
 Licencia MIT (ver `LICENSE`); cada archivo lleva el aviso de copyright en su cabecera.
