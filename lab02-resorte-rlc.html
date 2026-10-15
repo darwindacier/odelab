@@ -2206,6 +2206,10 @@ window.addEventListener('message', (e) => {
   if (e.source !== window.parent) return;
   if (e.data === 'pausar') fijarPausa(true);
   else if (e.data === 'seguir' && !pausaManual) fijarPausa(false);
+  else if (typeof e.data === 'string' && e.data.startsWith('tecla:')) {
+    // atajo reenviado por el portal: se despacha desde body para que el manejador de teclado lo vea
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: e.data.slice(6), bubbles: true }));
+  }
 });
 
 function abrirGuia(abrir) {

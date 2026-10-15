@@ -111,6 +111,9 @@
   table{width:100%; border-collapse:collapse; font-size:.84rem; margin:10px 0 6px}
   th,td{text-align:left; padding:7px 9px; border-bottom:1px solid rgba(120,160,220,.13)}
   th{color:var(--tenue2); font-size:.69rem; text-transform:uppercase; letter-spacing:.07em}
+  th code{text-transform:none; letter-spacing:0}   /* en mayúsculas la λ se volvería Λ */
+  .tabla{overflow-x:auto; margin:10px 0 6px}      /* en pantallas estrechas la tabla se desliza */
+  .tabla table{margin:0; min-width:560px}
   .enlaces{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
   .enlaces a{
     font-size:.78rem; font-weight:600; text-decoration:none; color:#040814;
@@ -192,8 +195,8 @@
         estudiante puede manipular, resuelve el modelo matemático con el mismo estado inicial y la
         misma excitación, y mide la diferencia entre ambos. Cuando el modelo falla, el propio
         laboratorio lo detecta con un clasificador numérico y el estudiante debe decidir qué supuesto
-        hay que cambiar. Al final, los datos se descargan en Excel para analizarlos fuera de la
-        página.
+        hay que cambiar. En los laboratorios 02 y 03, los datos se descargan en Excel para
+        analizarlos fuera de la página.
       </p>
 
       <div class="rejilla">
@@ -217,35 +220,51 @@
       <ul>
         <li>Cada pestaña conserva su estado: al volver, el experimento sigue donde lo dejó (el que no
           se ve queda en pausa para no gastar batería).</li>
-        <li>Dentro de cada laboratorio: <code>espacio</code> pausa, <code>R</code> reinicia,
-          <code>P</code> pliega el panel, <code>G</code> guarda la gráfica.</li>
+        <li>En los laboratorios 02 y 03: <code>espacio</code> pausa, <code>R</code> reinicia,
+          <code>P</code> pliega el panel, <code>G</code> guarda la gráfica. En el 01, <code>R</code>
+          borra las curvas y <code>P</code> pliega el panel. Funcionan también justo después de
+          cambiar de pestaña.</li>
         <li>En esta página: <code>←</code> y <code>→</code> cambian de pestaña, <code>F</code> pone
           pantalla completa, y cada pestaña tiene su propio enlace para compartir.</li>
       </ul>
 
-      <h3>La misma ecuación, tres fenómenos</h3>
-      <table>
-        <thead><tr><th>Modelo general</th><th>Resorte</th><th>Circuito RLC</th><th>Significado</th></tr></thead>
+      <h3>La misma ecuación de segundo orden, dos fenómenos (laboratorio 02)</h3>
+      <div class="tabla"><table>
+        <thead><tr><th>Modelo general <code>a₂ y'' + a₁ y' + a₀ y = F(t)</code></th><th>Resorte</th><th>Circuito RLC</th><th>Significado</th></tr></thead>
         <tbody>
-          <tr><td><code>a y'' + b y' + c y = F(t)</code></td><td>masa <code>m</code></td>
+          <tr><td><code>a₂</code></td><td>masa <code>m</code></td>
               <td>inductancia <code>L</code></td><td>inercia: se opone al cambio</td></tr>
-          <tr><td></td><td>amortiguamiento <code>c</code></td><td>resistencia <code>R</code></td>
+          <tr><td><code>a₁</code></td><td>amortiguamiento <code>c</code></td><td>resistencia <code>R</code></td>
               <td>disipa energía</td></tr>
-          <tr><td></td><td>rigidez <code>k</code></td><td><code>1/C</code></td>
+          <tr><td><code>a₀</code></td><td>rigidez <code>k</code></td><td><code>1/C</code></td>
               <td>devuelve al equilibrio</td></tr>
-          <tr><td></td><td>fuerza <code>F₀cos ωt</code></td><td>tensión <code>V₀cos ωt</code></td>
+          <tr><td><code>F(t)</code></td><td>fuerza <code>F₀cos ωt</code></td><td>tensión <code>V₀cos ωt</code></td>
               <td>excitación externa</td></tr>
-          <tr><td></td><td>posición <code>x</code>, velocidad <code>v</code></td>
+          <tr><td><code>y</code>, <code>y'</code></td><td>posición <code>x</code>, velocidad <code>v</code></td>
               <td>carga <code>q</code>, corriente <code>i = q'</code></td><td>variables observables</td></tr>
         </tbody>
-      </table>
+      </table></div>
+
+      <h3>La misma ecuación de primer orden, tres fenómenos (laboratorio 03)</h3>
+      <div class="tabla"><table>
+        <thead><tr><th>Modelo general <code>y' = −λ y + b</code></th><th>Tanque de mezclas</th><th>Enfriamiento de Newton</th><th>Circuito RC</th></tr></thead>
+        <tbody>
+          <tr><td>variable <code>y</code></td><td>concentración <code>c</code></td>
+              <td>temperatura <code>T</code></td><td>tensión del capacitor <code>v</code></td></tr>
+          <tr><td>tasa <code>λ</code></td><td><code>Q/V</code></td><td><code>k</code></td><td><code>1/(RC)</code></td></tr>
+          <tr><td>equilibrio <code>y∞ = b/λ</code></td><td><code>c_in</code></td><td><code>T_amb</code></td><td><code>V_f</code></td></tr>
+          <tr><td>tiempo característico <code>τ = 1/λ</code></td><td><code>V/Q</code></td><td><code>1/k</code></td><td><code>RC</code></td></tr>
+        </tbody>
+      </table></div>
 
       <h3>Qué incluye la interfaz</h3>
       <ul>
-        <li>Guía de entrada la primera vez que se abre cada laboratorio y globos de ayuda en cada tarjeta.</li>
+        <li>Guía de entrada en el botón «Guía» de cada laboratorio (se abre sola la primera vez si el
+          laboratorio se abre suelto) y globos de ayuda en cada tarjeta.</li>
         <li>Panel lateral plegable, pausa de la simulación y comparadores visuales entre fenómeno y modelo.</li>
         <li>Chips de estado que cambian de color según la discrepancia entre lo medido y lo que predice el modelo.</li>
-        <li>Exportación a Excel real (<code>.xlsx</code> con varias hojas) y a CSV, más PNG de las gráficas.</li>
+        <li>En los laboratorios 02 y 03, exportación a Excel real (<code>.xlsx</code> con varias hojas)
+          y a CSV, más PNG de las gráficas.</li>
         <li>Fórmulas compuestas en notación matemática, sin depender de internet.</li>
       </ul>
 
@@ -357,14 +376,22 @@ document.addEventListener('fullscreenchange', () => {
   btnPantalla.textContent = document.fullscreenElement ? '⛶ Salir' : '⛶ Pantalla';
 });
 
+/* Atajos de los laboratorios: tras pulsar una pestaña el foco queda en el portal y el iframe no recibe
+   el teclado, así que el portal le reenvía estas teclas. */
+const TECLAS_LAB = [' ', 'r', 'R', 'p', 'P', 'g', 'G'];
 window.addEventListener('keydown', (e) => {
   if (e.target.matches('input, select, textarea')) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;   // no secuestrar Ctrl+P, Ctrl+F, Alt+←…
   const orden = botones.map(b => b.dataset.panel);
   const i = orden.indexOf(activo);
+  const panel = paneles.find(p => p.dataset.panel === activo);
   if (e.key === 'ArrowRight') activar(orden[(i + 1) % orden.length]);
   else if (e.key === 'ArrowLeft') activar(orden[(i - 1 + orden.length) % orden.length]);
   else if (e.key === 'f' || e.key === 'F') btnPantalla.click();
+  else if (TECLAS_LAB.includes(e.key) && panel && panel.dataset.src) {
+    e.preventDefault();                             // el espacio no debe volver a pulsar la pestaña enfocada
+    mensaje(panel, 'tecla:' + e.key);
+  }
 });
 window.addEventListener('hashchange', () => {
   const nombre = location.hash.replace('#', '');
