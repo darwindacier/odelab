@@ -1,3 +1,4 @@
+# © 2026 Darwin Peña González · Licencia MIT · https://github.com/darwindacier/odelab
 r"""Valida el laboratorio 03: núcleo afín, los tres fenómenos, el renderizador TeX y el Excel."""
 from __future__ import annotations
 

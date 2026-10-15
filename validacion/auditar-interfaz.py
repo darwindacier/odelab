@@ -1,3 +1,4 @@
+# © 2026 Darwin Peña González · Licencia MIT · https://github.com/darwindacier/odelab
 r"""Audita la interfaz de los laboratorios: identificadores, ayudas y estructura."""
 from __future__ import annotations
 

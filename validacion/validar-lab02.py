@@ -1,3 +1,4 @@
+# © 2026 Darwin Peña González · Licencia MIT · https://github.com/darwindacier/odelab
 r"""Valida el laboratorio 02: modelo, clasificador y el archivo .xlsx exportado."""
 from __future__ import annotations
 

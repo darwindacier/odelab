@@ -1,3 +1,4 @@
+# © 2026 Darwin Peña González · Licencia MIT · https://github.com/darwindacier/odelab
 r"""Valida el laboratorio ODE 01: sintaxis y matemática (parser, campo, isóclinas, órdenes)."""
 from __future__ import annotations
 

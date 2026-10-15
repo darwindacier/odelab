@@ -1,3 +1,4 @@
+# © 2026 Darwin Peña González · Licencia MIT · https://github.com/darwindacier/odelab
 r"""Comprueba que el sitio sirve el portal y los tres laboratorios."""
 import time
 import urllib.request

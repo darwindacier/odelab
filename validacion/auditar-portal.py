@@ -1,3 +1,4 @@
+# © 2026 Darwin Peña González · Licencia MIT · https://github.com/darwindacier/odelab
 r"""Audita el portal: pestañas, archivos enlazados y coherencia con los laboratorios."""
 from __future__ import annotations
 

@@ -1,3 +1,4 @@
+# © 2026 Darwin Peña González · Licencia MIT · https://github.com/darwindacier/odelab
 r"""Comprueba que todas las fórmulas data-tex de los laboratorios se componen bien."""
 from __future__ import annotations
 
