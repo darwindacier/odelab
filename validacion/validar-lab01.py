@@ -134,6 +134,32 @@ const eulerPts = integrar(fExp, 0, 1, 1, 0.2, "euler");
 check("defecto de Euler con h=0.2 es apreciable", defectoMaximo(fExp, eulerPts) > 1e-3,
       defectoMaximo(fExp, eulerPts).toExponential(2));
 
+// ---------- 9. Orden con el h del estudiante, métodos exactos y cancelaciones ----------
+check("el orden usa el h pedido: RK4 con h=0.1 sigue dando ≈ 4",
+      cerca(ordenEmpirico(fExp, 0, 1, 1, x => Math.E, "rk4", 0.1), 4, 0.25));
+const f2x = compilarExpresion("2*x");
+check("RK4 en y'=2x: errores de redondeo, sin orden medible (null)",
+      ordenEmpirico(f2x, -2, 0.6, 8 / 3, x => 0.6 + x * x - 4, "rk4", 0.2) === null);
+const fCos = compilarExpresion("cos(x)");
+const exCos = x => 0.6 + Math.sin(x) - Math.sin(-2);
+check("Euler en y'=cos x con el intervalo por defecto (asimétrico) tiene orden ≈ 1",
+      cerca(ordenEmpirico(fCos, -2, 0.6, 8 / 3, exCos, "euler", 0.2), 1, 0.15));
+
+// ---------- 10. Referencia fina y dominio de la solución ----------
+const refLin = referenciaFina(compilarExpresion("x + y"), -2, 0.6, 8 / 3, 1e-3);
+const exLin = CATALOGO[0].exacta(8 / 3, -2, 0.6);
+check("referencia fina de y'=x+y llega a x1 y coincide con la exacta",
+      refLin.completa && Math.abs(refLin.yFin - exLin) < 1e-8, `error=${Math.abs(refLin.yFin - exLin).toExponential(2)}`);
+check("la referencia estima bien su propio error", refLin.errRef < 1e-9, refLin.errRef.toExponential(2));
+const r0 = Math.hypot(-2, 0.6);
+const refCirc = referenciaFina(fCirc, -2, 0.6, 8 / 3, 1e-3);
+check("y'=-x/y: detecta que la solución deja de existir en x = r",
+      !refCirc.completa && Math.abs(refCirc.xValido - r0) < 0.05, `xValido=${refCirc.xValido.toFixed(4)} r=${r0.toFixed(4)}`);
+const refCirc2 = referenciaFina(fCirc, -2, 0.6, -2 + 0.9 * (refCirc.xValido + 2), 1e-3);
+const yCirc = Math.sqrt(r0 * r0 - Math.pow(-2 + 0.9 * (refCirc.xValido + 2), 2));
+check("y'=-x/y: en el intervalo acortado la referencia es la circunferencia",
+      refCirc2.completa && Math.abs(refCirc2.yFin - yCirc) < 1e-6, `error=${Math.abs(refCirc2.yFin - yCirc).toExponential(2)}`);
+
 console.log(fallos === 0 ? "\nTODO OK" : `\n${fallos} FALLA(S)`);
 process.exit(fallos === 0 ? 0 : 1);
 """
@@ -144,6 +170,22 @@ r2 = subprocess.run([NODE, str(TMP / "pruebas.js")], capture_output=True, text=T
 print(r2.stdout.strip())
 if r2.returncode != 0:
     print("stderr:", r2.stderr.strip()[:800])
-sys.exit(r2.returncode)
+    sys.exit(r2.returncode)
+
+# --- Revisión estática de la página: errores de interfaz que ya aparecieron una vez ---
+print("\n--- contenido de la página ---")
+texto = HTML.read_text(encoding="utf-8")
+ok = True
+def revisar(nombre, cond):
+    global ok
+    print(("  ok    " if cond else "  FALLA ") + nombre)
+    ok = ok and cond
+revisar("los botones de vista se eligen por data-vista (Guía y «No volver» son .mini y dejaban ancho = NaN)",
+        "querySelectorAll('button.mini')" not in script and "querySelectorAll('button[data-vista]')" in script)
+revisar("«Aplicar» reconoce las ecuaciones del catálogo y conserva su solución exacta", "delCatalogo(txtF.value)" in script)
+revisar("sin solución exacta el error se mide contra una referencia, no con el defecto",
+        "referenciaFina(f, x0, y0, x1, hRef)" in script and "(defecto)" not in script)
+print("\nRESULTADO:", "laboratorio verificado" if ok else "revisar el laboratorio")
+sys.exit(0 if ok else 1)
 
 

@@ -812,14 +812,16 @@ function isoclinas(f, k, xmin, xmax, ymin, ymax, n) {
   return segs;
 }
 
-/* Orden empírico: pendiente de log(error) frente a log(h) con h, h/2, h/4, h/8. */
-function ordenEmpirico(f, x0, y0, x1, exacta, metodo) {
-  const hs = [0.2, 0.1, 0.05, 0.025];
+/* Orden empírico: pendiente de log(error) frente a log(h) con h, h/2, h/4, h/8.
+   Los errores por debajo de pisoError (redondeo o error de la referencia) no informan del orden. */
+function ordenEmpirico(f, x0, y0, x1, exacta, metodo, h = 0.2, pisoError = 0) {
+  const hs = [h, h / 2, h / 4, h / 8];
   const lx = [], ly = [];
+  const piso = Math.max(pisoError, 1e-11 * (1 + Math.abs(exacta(x1))));
   for (const h of hs) {
     const pts = integrar(f, x0, y0, x1, h, metodo);
     const err = Math.abs(pts[pts.length - 1][1] - exacta(x1));
-    if (err > 0 && Number.isFinite(err)) { lx.push(Math.log(h)); ly.push(Math.log(err)); }
+    if (err > piso && Number.isFinite(err)) { lx.push(Math.log(h)); ly.push(Math.log(err)); }
   }
   const n = lx.length;
   if (n < 2) return null;
@@ -840,6 +842,31 @@ function defectoMaximo(f, pts) {
     if (Number.isFinite(m)) peor = Math.max(peor, Math.abs(pend - m));
   }
   return peor;
+}
+
+/* Hasta dónde existe la solución por (x0, y0) en dirección a x1: dos integraciones RK4 finas
+   (paso hRef y 2·hRef) deben coincidir; donde se separan, la solución explota o deja el dominio
+   (p. ej. y' = −x/y al llegar a y = 0). Devuelve la referencia en el tramo válido y su error estimado. */
+function referenciaFina(f, x0, y0, x1, hRef) {
+  const fina = integrar(f, x0, y0, x1, hRef, 'rk4', 200000);
+  const gruesa = integrar(f, x0, y0, x1, 2 * hRef, 'rk4', 100000);
+  const coinciden = (ya, yb) => Math.abs(ya - yb) <= 1e-6 * (1 + Math.abs(ya));
+  let xValido = x0, errRef = 0, rompio = false;
+  // los pasos completos de h y 2h caen en los mismos x: fina[2i] ↔ gruesa[i]
+  for (let i = 1; i < gruesa.length && 2 * i < fina.length; i++) {
+    const [xa, ya] = fina[2 * i], yb = gruesa[i][1];
+    if (Math.abs(xa - gruesa[i][0]) > 1e-9 * (1 + Math.abs(xa))) break;   // último paso parcial: se mira abajo
+    if (!coinciden(ya, yb)) { rompio = true; break; }
+    errRef = Math.max(errRef, Math.abs(ya - yb) / 15);   // extrapolación de Richardson para RK4
+    xValido = xa;
+  }
+  const ua = fina[fina.length - 1], ub = gruesa[gruesa.length - 1];
+  const llegan = (p) => Math.abs(p[0] - x1) <= 1e-9 * (1 + Math.abs(x1));
+  if (!rompio && llegan(ua) && llegan(ub) && coinciden(ua[1], ub[1])) {
+    xValido = x1;
+    errRef = Math.max(errRef, Math.abs(ua[1] - ub[1]) / 15);
+  }
+  return { xValido, completa: xValido === x1, errRef, yFin: ua[1] };
 }
 /* ==== MATH:END ==== */
 
@@ -1133,53 +1160,81 @@ function leyendaCampo(items, W) {
 function intervaloComparacion() {
   if (curvas.length) {
     const c = curvas[curvas.length - 1];
-    return { x0: c.x0, y0: c.y0, x1: c.x1, exacta: c.exacta, invariante: c.invariante };
+    // si se hizo clic junto al borde derecho, el intervalo no puede quedar vacío
+    return { x0: c.x0, y0: c.y0, x1: Math.max(c.x1, c.x0 + vista.ancho / 4), exacta: c.exacta };
   }
+  // intervalo por defecto asimétrico y con y0 ≠ 0: en [−a, a] con y0 = 0 algunos errores se cancelan
+  // (Euler aparenta orden 2 en y' = cos x) y algunas soluciones son triviales (y' = y)
   const [ymin, ymax] = rangoY();
-  const x0 = vista.cx - vista.ancho / 4, x1 = vista.cx + vista.ancho / 4;
-  return { x0, y0: (ymin + ymax) / 2, x1, exacta: exactaActual, invariante: invarianteActual };
+  const x0 = vista.cx - vista.ancho / 4, x1 = vista.cx + vista.ancho / 3;
+  return { x0, y0: (ymin + ymax) / 2 + (ymax - ymin) / 8, x1, exacta: exactaActual };
 }
 
 function comparar() {
-  const { x0, y0, x1, exacta, invariante } = intervaloComparacion();
+  const ic = intervaloComparacion();
+  const { x0, y0, exacta } = ic;
+  let x1 = ic.x1;
+  // la referencia detecta si la solución deja de existir antes de x1; entonces se acorta el intervalo
+  const hRef = Math.max(1e-3, Math.abs(x1 - x0) / 20000);
+  let ref = referenciaFina(f, x0, y0, x1, hRef);
+  let acortado = false;
+  if (!ref.completa) {
+    x1 = x0 + 0.9 * (ref.xValido - x0);
+    acortado = true;
+    ref = referenciaFina(f, x0, y0, x1, hRef);
+  }
   comparacion = [];
+  tablaMetodos.innerHTML = '';
+  if (!(x1 - x0 > 1e-6)) {
+    notaExacta.innerHTML = 'La solución por ese punto no existe a la derecha (el campo no está definido ahí): lance la curva desde otro punto.';
+    eError.textContent = '—'; eOrden.textContent = '—';
+    textoReto.innerHTML = ''; estadoReto.innerHTML = '';
+    return;
+  }
+  const yExacto = exacta ? exacta(x1, x0, y0) : ref.yFin;
+  const yDe = exacta ? (x => exacta(x, x0, y0)) : (() => yExacto);
+  const pisoError = exacta ? 0 : 10 * ref.errRef;
   const metodos = [
     { metodo: 'euler', nombre: 'Euler' },
     { metodo: 'heun', nombre: 'Heun' },
     { metodo: 'rk4', nombre: 'RK4' }
   ];
-  tablaMetodos.innerHTML = '';
+  // con h muy pequeño en un intervalo largo, h/8 superaría el límite de pasos del integrador
+  const hOrden = Math.max(h, Math.abs(x1 - x0) / 7000);
   for (const m of metodos) {
     const pts = integrar(f, x0, y0, x1, h, m.metodo);
     const yFin = pts[pts.length - 1][1];
-    const err = exacta ? Math.abs(yFin - exacta(x1, x0, y0)) : null;
-    const orden = exacta ? ordenEmpirico(f, x0, y0, x1, x => exacta(x, x0, y0), m.metodo) : null;
-    comparacion.push({ metodo: m.metodo, nombre: m.nombre, pts, yFin, err, orden, x0, x1, exacta: exacta ? (x => exacta(x, x0, y0)) : null, invariante });
+    const llego = Math.abs(pts[pts.length - 1][0] - x1) < 1e-9 * (1 + Math.abs(x1));
+    const err = llego ? Math.abs(yFin - yExacto) : Infinity;
+    const exactoEnRedondeo = err <= Math.max(pisoError, 1e-11 * (1 + Math.abs(yExacto)));
+    const orden = exactoEnRedondeo ? null : ordenEmpirico(f, x0, y0, x1, yDe, m.metodo, hOrden, pisoError);
+    comparacion.push({ metodo: m.metodo, nombre: m.nombre, pts, yFin, err, orden, exactoEnRedondeo, x0, x1,
+                       exacta: exacta ? yDe : null });
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${m.nombre}</td><td>${yFin.toFixed(6)}</td>` +
-                   `<td>${err === null ? '—' : err.toExponential(2)}</td>` +
-                   `<td>${orden === null ? '—' : orden.toFixed(2)}</td>`;
+    tr.innerHTML = `<td>${m.nombre}</td><td>${llego ? yFin.toFixed(6) : 'diverge'}</td>` +
+                   `<td>${Number.isFinite(err) ? err.toExponential(2) : '—'}</td>` +
+                   `<td>${exactoEnRedondeo ? 'exacto' : (orden === null ? '—' : orden.toFixed(2))}</td>`;
     tablaMetodos.appendChild(tr);
   }
   const escogido = comparacion.find(z => z.metodo === metodo);
-  eError.textContent = escogido.err === null ? '—' : escogido.err.toExponential(2);
-  eOrden.textContent = escogido.orden === null ? '—' : escogido.orden.toFixed(2);
-  notaExacta.innerHTML = exacta
+  eError.textContent = Number.isFinite(escogido.err) ? escogido.err.toExponential(2) : '—';
+  eOrden.textContent = escogido.exactoEnRedondeo ? 'exacto' : (escogido.orden === null ? '—' : escogido.orden.toFixed(2));
+  notaExacta.innerHTML = (exacta
     ? 'Solución exacta conocida: el error se mide contra ella.'
-    : 'Esta ecuación no tiene solución explícita en el catálogo: se informa el defecto máximo.';
-  if (!exacta) {
-    const d = defectoMaximo(f, escogido.pts);
-    eError.textContent = d.toExponential(2) + ' (defecto)';
-  }
-  revisarReto(escogido, exacta ? exacta(x1, x0, y0) : null, y0);
+    : 'Sin solución explícita: el error se mide contra una referencia RK4 con paso ' +
+      `${hRef.toPrecision(2)} (su propio error es menor que ${Math.max(ref.errRef, 1e-15).toExponential(0)}).`) +
+    (acortado ? ` La solución deja de existir cerca de x = ${ref.xValido.toFixed(3)}: se compara en ` +
+                `[${x0.toFixed(3)}, ${x1.toFixed(3)}].` : '') +
+    (escogido.exactoEnRedondeo ? ' El método escogido es exacto en esta ecuación: su error es solo redondeo y no tiene orden medible.' : '');
+  revisarReto(escogido, yExacto, y0);
 }
 
 function revisarReto(escogido, yExacto, y0) {
-  const alcance = Math.max(1e-9, Math.abs((yExacto ?? y0) - y0));
+  const alcance = Math.max(1e-9, Math.abs(yExacto - y0));
   const umbral = 0.01 * Math.max(alcance, 1);
-  const cumple = escogido.err !== null && escogido.err < umbral;
+  const cumple = Number.isFinite(escogido.err) && escogido.err < umbral;
   textoReto.innerHTML = `Con <b>${escogido.nombre}</b> y h = <b>${h.toFixed(3)}</b>, logre que el ` +
-    `error global sea menor que el 1 % del desplazamiento de la solución ` +
+    `error global sea menor que el 1 % del desplazamiento de la solución, o de 1 si este es menor ` +
     `(${umbral.toExponential(2)}).`;
   estadoReto.innerHTML = cumple
     ? '<span class="ok">✔ Reto cumplido con este paso.</span>'
@@ -1210,7 +1265,16 @@ function aplicarExpresion(texto, exacta, invariante) {
     eMsg.textContent = 'No se pudo interpretar: ' + err.message;
   }
 }
-btnAplicar.addEventListener('click', () => aplicarExpresion(txtF.value, null, null));
+/* Si el texto es una ecuación del catálogo (sin importar espacios ni mayúsculas), conserva su solución exacta. */
+function delCatalogo(texto) {
+  const clave = (s) => String(s).replace(/\s+/g, '').toLowerCase();
+  return CATALOGO.findIndex(c => clave(c.expr) === clave(texto));
+}
+btnAplicar.addEventListener('click', () => {
+  const i = delCatalogo(txtF.value);
+  if (i >= 0) selCatalogo.value = String(i);
+  aplicarExpresion(txtF.value, i >= 0 ? CATALOGO[i].exacta : null, i >= 0 ? CATALOGO[i].invariante : null);
+});
 txtF.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnAplicar.click(); });
 
 /* Un cuadro de dibujo por cuadro de pantalla, aunque lleguen muchos movimientos del puntero. */
@@ -1303,7 +1367,8 @@ btnLimpiar.addEventListener('click', () => {
   eCurvas.textContent = '0'; eError.textContent = '—'; eOrden.textContent = '—';
   dibujar();
 });
-document.querySelectorAll('button.mini').forEach(b => {
+// solo los botones de vista: «Guía» y «No volver a mostrarla» también son .mini y dejaban ancho = NaN
+document.querySelectorAll('button[data-vista]').forEach(b => {
   b.addEventListener('click', () => {
     const v = parseFloat(b.dataset.vista);
     // Para 10 y 20 se mira el cuadrante positivo (logístico, crecimiento);

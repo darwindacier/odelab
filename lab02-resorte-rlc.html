@@ -389,7 +389,7 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
       </div>
       <div class="deslizador">
         <div class="etiqueta"><span id="lb2">amortiguamiento c</span><b id="e2">0.50</b></div>
-        <input type="range" id="r2" min="0" max="8" step="0.02" value="0.5" />
+        <input type="range" id="r2" min="0" max="60" step="0.02" value="0.5" />
       </div>
       <div class="deslizador">
         <div class="etiqueta"><span id="lb3">rigidez k</span><b id="e3">10.0</b></div>
@@ -440,6 +440,7 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
         <option value="seco">Rozamiento seco (Coulomb)</option>
         <option value="no_lineal">Resorte no lineal (se ablanda)</option>
         <option value="cuadratica">Amortiguamiento cuadrático</option>
+        <option value="oculto" hidden>Oculto (modo examen)</option>
       </select>
       <div class="fila">
         <button class="mini oro" id="btnExamen">Modo examen (al azar y oculto)</button>
@@ -464,7 +465,7 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
         <label><input type="checkbox" id="gMod" checked /> Modelo lineal (cian)</label>
         <label><input type="checkbox" id="gVel" /> Velocidad / corriente</label>
         <label><input type="checkbox" id="gDif" /> Diferencia (fenómeno − modelo)</label>
-        <label><input type="checkbox" id="gPicos" checked /> Picos que analiza el clasificador</label>
+        <label><input type="checkbox" id="gPicos" checked /> Picos del ajuste de decaimiento</label>
       </div>
       <div class="fila">
         <button class="mini activo" data-panel="resonancia">Resonancia</button>
@@ -486,7 +487,7 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
     </div>
 
     <div class="tarjeta">
-      <h2>Datos para Excel<button class="ayuda" data-ayuda="Descargue la corrida completa en .xlsx (con varias hojas) o en CSV, y analícela fuera de la página: ajustes, gráficas y conclusiones.">?</button></h2>
+      <h2>Datos para Excel<button class="ayuda" data-ayuda="Descargue los últimos 20 s de la corrida en .xlsx (con varias hojas) o en CSV, y analícela fuera de la página: ajustes, gráficas y conclusiones.">?</button></h2>
       <div class="fila">
         <button class="mini activo" id="btnXLSX">Descargar Excel (.xlsx)</button>
         <button class="mini" id="btnCSV">Descargar CSV</button>
@@ -499,9 +500,9 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
       <div class="nota">
         <b>Análisis sugerido con esos datos:</b><br />
         1. Grafique <span data-tex="x"></span> frente a <span data-tex="t"></span> y superponga el modelo.<br />
-        2. Tome los picos sucesivos <span data-tex="A_n"></span> y grafique <span data-tex="\ln(A_n)"></span>
-        contra el número de ciclo: la pendiente da <span data-tex="-\zeta\omega_0"></span>; compare con
-        <span data-tex="\frac{c}{2m}"></span>.<br />
+        2. Con <span data-tex="F_0 = 0"></span>, tome los picos sucesivos <span data-tex="A_n"></span> y grafique
+        <span data-tex="\ln(A_n)"></span> contra el instante <span data-tex="t_n"></span> de cada pico: la pendiente da
+        <span data-tex="-\zeta\omega_0"></span>; compare con <span data-tex="\frac{c}{2m}"></span>.<br />
         3. En la hoja <b>Resonancia</b>, ubique el máximo de la columna medida y compárelo con
         <span data-tex="\omega_r = \omega_0\sqrt{1-2\zeta^2}"></span>.<br />
         4. Si el máximo medido está corrido o el decaimiento no es exponencial, el modelo lineal
@@ -532,8 +533,8 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
         <span data-tex="i = q'"></span> es la velocidad del resorte.<br />
         <b>Verificación:</b> el panel compara la se&ntilde;al del fen&oacute;meno con la del modelo
         (mismas condiciones y misma excitaci&oacute;n) y mide su diferencia; un clasificador num&eacute;rico
-        propone el efecto no modelado a partir del decaimiento libre y del corrimiento del pico de
-        resonancia.
+        suelta el sistema sin excitaci&oacute;n y propone el efecto no modelado a partir de la rigidez
+        medida al soltarlo, la duraci&oacute;n del primer medio ciclo y la forma del decaimiento.
       </div>
     </div>
   </aside>
@@ -728,11 +729,23 @@ function derivadaEstado(P, efecto) {
     let fuerza = P.F0 * Math.cos(P.w * t);
     let amort = P.c * v;
     let rigidez = P.k * x;
-    if (ef === 'seco') fuerza -= P.Fc * Math.sign(v);
-    if (ef === 'no_lineal') rigidez = P.k * (1 + P.k3rel * x * x) * x;
+    // resorte que se ablanda: k x/(1 + a x²) pierde rigidez al estirarse pero nunca cambia de signo,
+    // así el pozo de potencial no tiene borde y la masa no puede escaparse al infinito
+    if (ef === 'no_lineal') rigidez = P.k * x / (1 + P.ablanda * x * x);
     if (ef === 'cuadratica') amort = (P.c + P.c2rel * Math.abs(v)) * v;
+    if (ef === 'seco') {
+      // adherencia (Karnopp): casi quieta y con fuerza neta menor que Fc, la masa se queda pegada
+      if (Math.abs(v) < 0.01 && Math.abs(fuerza - amort - rigidez) <= P.Fc) return [v, -v / 0.02];
+      fuerza -= P.Fc * Math.sign(v);
+    }
     return [v, (fuerza - amort - rigidez) / P.m];
   };
+}
+
+/* Energía potencial del resorte (la del resorte que se ablanda es logarítmica). */
+function energiaPotencial(P, efecto, x) {
+  if (efecto === 'no_lineal') return P.k / (2 * P.ablanda) * Math.log(1 + P.ablanda * x * x);
+  return 0.5 * P.k * x * x;
 }
 
 function pasoRK4Estado(der, t, y, h) {
@@ -850,22 +863,46 @@ function ajusteLineal(xs, ys) {
   return { a, b: my - a * mx };
 }
 
-/* Clasificador: mide el fenómeno y propone el efecto no modelado.
-   Primero mira si el pico de resonancia se corrió (rigidez no lineal); si no,
-   analiza el decaimiento libre: un decremento constante delata rozamiento seco,
-   y un decremento relativo que crece con la amplitud delata frenado cuadrático. */
+/* Clasificador: suelta el sistema libre (sin excitación) y propone el efecto no modelado.
+   1. Rigidez: en el primer punto de retorno v = 0, así que ni el frenado viscoso ni el cuadrático
+      actúan y k_ef = −m x''/x. Si además el medio ciclo dura más de lo que el modelo lineal
+      predice con el frenado medido (el rozamiento seco no lo alarga), el resorte se ablanda.
+   2. Decaimiento: un decremento constante delata rozamiento seco, y un decremento relativo
+      que crece con la amplitud delata frenado cuadrático.
+   El corrimiento del pico de resonancia no se usa: un frenado cuadrático fuerte también lo corre. */
 function diagnosticar(P) {
-  const barrido = barridoResonancia(P, 36);
-  const pico = barrido.reduce((a, b) => (b.A > a.A ? b : a));
   const cl = clasificar(P.m, P.c, P.k);
-  const wTeorica = frecuenciaResonancia(P.m, P.c, P.k) || cl.w0;
-  if (pico.w < 0.92 * wTeorica) {
-    return { efecto: 'no_lineal',
-             evidencia: `el pico medido está en ω=${pico.w.toFixed(2)} y el modelo lineal lo predice en ${wTeorica.toFixed(2)}: el resorte pierde rigidez al estirarse` };
-  }
+  // prueba normalizada: se suelta desde al menos una unidad para que los efectos se noten
+  const xPrueba = (P.x0 < 0 ? -1 : 1) * Math.max(1, Math.abs(P.x0));
   const P0 = Object.assign({}, P, { F0: 0, efecto: P.efecto || 'ninguno' });
-  const libres = integrarEstado(P0, P0.efecto, 0, [P.x0 === 0 ? 1 : P.x0, 0], 40 / cl.w0, 0.002);
-  const amps = picosDecrecientes(libres);
+  const h = 0.002;
+  const libres = integrarEstado(P0, P0.efecto, 0, [xPrueba, 0], 40 / cl.w0, h);
+  // el frenado lineal nunca detiene la masa en tiempo finito; el rozamiento seco sí, y fuera del equilibrio
+  const cola = libres.slice(Math.floor(libres.length * 0.8));
+  const xFin = libres[libres.length - 1][1];
+  const recorridoCola = Math.max(...cola.map(p => p[1])) - Math.min(...cola.map(p => p[1]));
+  if (recorridoCola < 1e-4 && Math.abs(xFin) > 2e-3) {
+    return { efecto: 'seco',
+             evidencia: `la masa se detuvo del todo en x=${xFin.toFixed(3)}, fuera del equilibrio: un frenado proporcional a la velocidad nunca la detiene en tiempo finito, el rozamiento constante sí` };
+  }
+  // x''(0) con v(0) = 0, de segundo orden: x(h) y x(2h) eliminan el término en h³
+  const acel = (8 * libres[1][1] - libres[2][1] - 7 * libres[0][1]) / (2 * h * h);
+  const kEf = -P.m * acel / xPrueba;
+  for (let i = 1; i < libres.length - 1; i++) {
+    const a = Math.abs(libres[i - 1][1]), b = Math.abs(libres[i][1]), c = Math.abs(libres[i + 1][1]);
+    if (!(b > a && b >= c)) continue;
+    const L = Math.log(Math.abs(xPrueba) / b);            // decremento logarítmico del medio ciclo
+    const zEf = Math.sqrt((L * L) / (Math.PI * Math.PI + L * L));
+    const tPredicho = Math.PI / (cl.w0 * Math.sqrt(1 - zEf * zEf));
+    const tMedido = libres[i][0];
+    if (kEf < 0.93 * P.k && tMedido > 1.03 * tPredicho) {
+      return { efecto: 'no_lineal',
+               evidencia: `al soltarlo (v=0, sin frenado) la rigidez medida es ${kEf.toFixed(2)} frente a k=${P.k.toFixed(2)}, y el medio ciclo dura ${tMedido.toFixed(3)} s cuando el modelo lineal predice ${tPredicho.toFixed(3)} s: el resorte pierde rigidez al estirarse` };
+    }
+    break;
+  }
+  // la amplitud de salida cuenta como primer pico: ahí el frenado cuadrático pesa más
+  const amps = [Math.abs(xPrueba), ...picosDecrecientes(libres)];
   const A = [], dec = [];
   for (let i = 1; i < amps.length; i++) {
     const d = amps[i - 1] - amps[i];
@@ -879,11 +916,14 @@ function diagnosticar(P) {
   const corr = correlacion(A, rho);
   const { b } = ajusteLineal(A, dec);
   const media = dec.reduce((x, y) => x + y, 0) / dec.length;
-  if (corr > 0.5) {
+  // en el modelo lineal el decremento relativo es constante: se exige una variación apreciable
+  const mediaRho = rho.reduce((x, y) => x + y, 0) / rho.length;
+  const variacionRho = (Math.max(...rho) - Math.min(...rho)) / Math.max(1e-12, mediaRho);
+  if (corr > 0.5 && variacionRho > 0.1) {
     return { efecto: 'cuadratica',
              evidencia: `el decremento relativo crece con la amplitud (correlación ${corr.toFixed(2)}): la fuerza de frenado no es proporcional a la velocidad` };
   }
-  if (b > 0.25 * media) {
+  if (b > 0.08 * media) {
     return { efecto: 'seco',
              evidencia: `el decremento por ciclo tiene una parte fija de ${b.toFixed(3)} que no depende de la amplitud (media ${media.toFixed(3)}): hay rozamiento constante` };
   }
@@ -1117,14 +1157,14 @@ function instalarInteraccion(cv, graf, ventana, redibujar) {
 
 /* ---------------- aplicación ---------------- */
 const P = { fenomeno: 'resorte', m: 1, c: 0.5, k: 10, F0: 2, w: 2, x0: 1, v0: 0,
-            efecto: 'ninguno', Fc: 0.35, k3rel: -0.25, c2rel: 0.6 };
+            efecto: 'ninguno', Fc: 0.35, ablanda: 0.25, c2rel: 0.6 };
 
 const ETIQUETAS = {
   resorte: { f1: 'masa m (kg)', f2: 'amortiguamiento c (N·s/m)', f3: 'rigidez k (N/m)',
              f4: 'fuerza F₀ (N)', f6: 'posición inicial x₀ (m)', f7: 'velocidad inicial v₀ (m/s)',
              unidad1: '', unidad2: '', unidad3: '' },
   rlc: { f1: 'inductancia L (H)', f2: 'resistencia R (Ω)', f3: 'elastancia 1/C (1/F)',
-         f4: 'tensión V₀ (V)', f6: 'carga inicial q₀ (mC)', f7: 'corriente inicial i₀ (mA)',
+         f4: 'tensión V₀ (V)', f6: 'carga inicial q₀ (C)', f7: 'corriente inicial i₀ (A)',
          unidad1: '', unidad2: '', unidad3: '' }
 };
 
@@ -1149,6 +1189,8 @@ const vistaResorte = { amp: 0 };   // amplitud que usa la escala del dibujo, sua
 let velocidad = 1;
 let pausado = false;
 let diagElegido = null;
+let examen = false;          // modo examen: el efecto queda oculto hasta que el estudiante diagnostique
+const HIST_MAX = 4800;       // 20 s de historia a 240 pasos por segundo
 
 function ajustar(cv, ctx) {
   const r = cv.parentElement.getBoundingClientRect();
@@ -1189,9 +1231,17 @@ function recalcular() {
   renderizarTeX(notaModelo);
   sim.barrido = barridoResonancia(P, 60);
   sim.diag = diagnosticar(P);
-  veredicto.innerHTML = `<b>Clasificador:</b> ${textoEfecto(sim.diag.efecto)}.<br />` +
-    `<span style="opacity:.85">Evidencia: ${sim.diag.evidencia}.</span>`;
+  mostrarVeredicto();
   dibujar();
+}
+
+/* En modo examen el veredicto del clasificador delataría la respuesta: se muestra tras diagnosticar. */
+function efectoOculto() { return examen && diagElegido === null; }
+function mostrarVeredicto() {
+  veredicto.innerHTML = efectoOculto()
+    ? '<b>Clasificador:</b> oculto en modo examen hasta que dé su diagnóstico.'
+    : `<b>Clasificador:</b> ${textoEfecto(sim.diag.efecto)}.<br />` +
+      `<span style="opacity:.85">Evidencia: ${sim.diag.evidencia}.</span>`;
 }
 
 function textoEfecto(e) {
@@ -1218,8 +1268,14 @@ function avanzar(dt) {
   sim.fen = pasoRK4Estado(derF, sim.t, sim.fen, dt);
   sim.mod = pasoRK4Estado(derM, sim.t, sim.mod, dt);
   sim.t += dt;
+  if (![...sim.fen, ...sim.mod].every(Number.isFinite)) {
+    // salvaguarda: un estado no finito arruinaría gráficas y medidas; se vuelve a soltar desde x₀
+    reiniciarSimulacion();
+    avisar('La simulación se salió de rango y se reinició desde las condiciones iniciales', 'oro');
+    return;
+  }
   sim.hist.push([sim.t, sim.fen[0], sim.fen[1], sim.mod[0], sim.mod[1]]);
-  if (sim.hist.length > 1400) sim.hist.shift();
+  if (sim.hist.length > HIST_MAX) sim.hist.shift();
 }
 
 /* ---------- dibujo del fenómeno ---------- */
@@ -1356,7 +1412,7 @@ function dibujarRLC(W, H) {
   }
   ctxFen.lineTo(rFin, y0); ctxFen.stroke();
   ctxFen.fillStyle = 'rgba(0,242,254,.9)';
-  ctxFen.fillText(`R = ${P.c.toFixed(1)} Ω`, rIni, y0 - 22);
+  ctxFen.fillText(`R = ${P.c.toFixed(2)} Ω`, rIni, y0 - 22);
 
   // inductancia (derecha, arcos)
   ctxFen.strokeStyle = '#a78bfa'; ctxFen.lineWidth = 2;
@@ -1384,8 +1440,8 @@ function dibujarRLC(W, H) {
   ctxFen.fillText(qq > 0 ? '+++++' : '−−−−−', capCx - 34, y1 - 30);
   ctxFen.fillStyle = 'rgba(226,232,240,.8)';
   ctxFen.font = '12px ui-monospace, monospace';
-  ctxFen.fillText(`q = ${q.toFixed(3)} mC`, capCx - 60, y1 + 24);
-  ctxFen.fillText(`i = ${i.toFixed(3)} mA`, capCx - 60, y1 + 40);
+  ctxFen.fillText(`q = ${q.toFixed(3)} C`, capCx - 60, y1 + 24);
+  ctxFen.fillText(`i = ${i.toFixed(3)} A`, capCx - 60, y1 + 40);
   ctxFen.fillText(`1/C = ${P.k.toFixed(1)} 1/F`, capCx - 60, y1 + 56);
 
   // portadores de carga: su desplazamiento por el circuito es proporcional a q, así i = dq/dt es su velocidad
@@ -1432,8 +1488,10 @@ function dibujarFenomeno() {
 /* Texto del aviso cuando el fenómeno está quieto (en pausa o en reposo), o null si se mueve. */
 function estadoQuieto() {
   if (pausado) return '⏸ En pausa · haga clic aquí o pulse espacio para seguir';
-  const enReposo = P.F0 === 0 && sim.t > 1 && Math.abs(sim.fen[0]) < 2e-3 && Math.abs(sim.fen[1]) < 2e-3;
-  return enReposo ? 'Llegó al equilibrio · haga clic aquí para soltarlo otra vez desde x₀' : null;
+  // con rozamiento seco la masa se queda pegada en cualquier punto donde el resorte no vence a Fc
+  const dentroDeBanda = P.efecto === 'seco' ? P.k * Math.abs(sim.fen[0]) <= P.Fc : Math.abs(sim.fen[0]) < 2e-3;
+  const enReposo = P.F0 === 0 && sim.t > 1 && dentroDeBanda && Math.abs(sim.fen[1]) < 2e-3;
+  return enReposo ? 'Se detuvo · haga clic aquí para soltarlo otra vez desde x₀' : null;
 }
 cFen.addEventListener('click', () => {
   if (pausado) btnPausa.click();
@@ -1454,24 +1512,21 @@ function ventanaTiempo() {
   return { ta: centro - ancho / 2, tb: centro + ancho / 2 };
 }
 
-/* Ajuste del decaimiento: ln(A_n) contra n. Devuelve zeta estimado y la recta. */
+/* Ajuste del decaimiento: ln(A_n) contra el instante t_n de cada pico. Devuelve zeta estimado y la recta. */
 function ajusteDecaimiento() {
-  const idx = [], ln = [], tiempos = [];
+  const ln = [], tiempos = [];
   for (let i = 1; i < sim.hist.length - 1; i++) {
     const a = Math.abs(sim.hist[i - 1][1]), n = Math.abs(sim.hist[i][1]), c = Math.abs(sim.hist[i + 1][1]);
-    if (!(n > a && n >= c) || n <= 1e-6) continue;
-    idx.push(idx.length);
+    // máximo estricto: la meseta de una masa que quedó pegada no es un pico
+    if (!(n > a && n > c) || n <= 1e-6) continue;
     ln.push(Math.log(n));
     tiempos.push(sim.hist[i][0]);
   }
-  if (idx.length < 4) return null;
-  const { a, b } = ajusteLineal(idx, ln);
-  // la envolvente decae como e^(−ζ ω₀ t): la pendiente de ln(Aₙ) contra el instante del pico es −ζ ω₀
+  if (ln.length < 4) return null;
+  // la envolvente decae como e^(−ζ ω₀ t): la pendiente de ln(Aₙ) contra tₙ es −ζ ω₀
+  const { a, b } = ajusteLineal(tiempos, ln);
   const cl = clasificar(P.m, P.c, P.k);
-  const zetaEst = -ajusteLineal(tiempos, ln).a / cl.w0;
-  // bondad del ajuste exponencial
-  const r2ajuste = r2(idx, ln);
-  return { a, b, zetaEst, zetaTeo: cl.zeta, r2: r2ajuste, n: idx.length, A0: Math.exp(b) };
+  return { a, b, tiempos, ln, zetaEst: -a / cl.w0, zetaTeo: cl.zeta, r2: r2(tiempos, ln), n: ln.length };
 }
 
 function dibujarGraficas() {
@@ -1481,7 +1536,7 @@ function dibujarGraficas() {
   const { izq: ci, der: cd } = cajasGraficas(W, H);
   const { ta, tb } = ventanaTiempo();
   const resorte = P.fenomeno === 'resorte';
-  const nomX = resorte ? 'x (m)' : 'q (mC)', nomV = resorte ? 'v (m/s)' : 'i (mA)';
+  const nomX = resorte ? 'x (m)' : 'q (C)', nomV = resorte ? 'v (m/s)' : 'i (A)';
 
   const visibles = sim.hist.filter(h => h[0] >= ta - 0.05 && h[0] <= tb + 0.05);
   let amax = 1e-9, vmax = 1e-9, dmax = 1e-9;
@@ -1510,7 +1565,7 @@ function dibujarGraficas() {
   if (graf.verPicos) {
     for (let i = 1; i < visibles.length - 1; i++) {
       const a = Math.abs(visibles[i - 1][1]), b = Math.abs(visibles[i][1]), c = Math.abs(visibles[i + 1][1]);
-      if (b > a && b >= c) punto(ctxGraf, X(visibles[i][0]), Y(visibles[i][1]), 3.2, TINTA.fen, 'rgba(5,9,20,.9)');
+      if (b > a && b > c && b > 1e-6) punto(ctxGraf, X(visibles[i][0]), Y(visibles[i][1]), 3.2, TINTA.fen, 'rgba(5,9,20,.9)');
     }
   }
   ctxGraf.restore();
@@ -1554,7 +1609,7 @@ function dibujarGraficas() {
 
   // ---------------- panel derecho ----------------
   const titulos = { resonancia: 'Curva de resonancia', fase: 'Retrato de fase',
-                    energia: 'Energía del sistema', decaimiento: 'Decaimiento: ln Aₙ y ajuste' };
+                    energia: 'Energía del sistema', decaimiento: 'Decaimiento: ln Aₙ contra tₙ' };
   const titulo = titulos[graf.panel];
 
   if (graf.panel === 'resonancia') {
@@ -1608,8 +1663,8 @@ function dibujarGraficas() {
     leyenda(ctxGraf, [{ texto: 'Fenómeno', color: TINTA.fen }, { texto: 'Modelo', color: TINTA.mod },
                       { texto: 'estado actual', color: TINTA.vel, punto: true }], cd.x1, cd.leyendaY);
   } else if (graf.panel === 'energia') {
-    const energia = (h) => 0.5 * P.m * h[2] * h[2] + 0.5 * P.k * h[1] * h[1];
-    const energiaM = (h) => 0.5 * P.m * h[4] * h[4] + 0.5 * P.k * h[3] * h[3];
+    const energia = (h) => 0.5 * P.m * h[2] * h[2] + energiaPotencial(P, P.efecto, h[1]);
+    const energiaM = (h) => 0.5 * P.m * h[4] * h[4] + energiaPotencial(P, 'ninguno', h[3]);
     let eMax = 1e-9;
     for (const h of visibles) eMax = Math.max(eMax, energia(h), energiaM(h));
     const g = marcoGrafica(ctxGraf, cd, [ta, tb], [0, eMax * 1.12],
@@ -1621,7 +1676,7 @@ function dibujarGraficas() {
     leyenda(ctxGraf, [{ texto: 'Fenómeno', color: TINTA.fen }, { texto: 'Modelo', color: TINTA.mod }], cd.x1, cd.leyendaY);
     const ult = sim.hist[sim.hist.length - 1];
     if (ult) {
-      const ec = 0.5 * P.m * ult[2] * ult[2], ep = 0.5 * P.k * ult[1] * ult[1];
+      const ec = 0.5 * P.m * ult[2] * ult[2], ep = energiaPotencial(P, P.efecto, ult[1]);
       const total = Math.max(1e-9, ec + ep);
       const bx = cd.x1 - 168, by = cd.y1 + 10, ancho = 150;
       ctxGraf.save();
@@ -1643,19 +1698,19 @@ function dibujarGraficas() {
                                          : 'Se necesitan 4 picos: ponga F₀ = 0 y déjelo oscilar');
       return;
     }
-    const ln = picosDecrecientes(sim.hist.map(h => [h[0], h[1]])).filter(v => v > 1e-6).map(Math.log);
-    const nMax = Math.max(2, ln.length - 1);
-    const [lo, hi] = rangoCon(Math.min(...ln, aj.b + aj.a * nMax), Math.max(...ln, aj.b), 0.1);
-    const g = marcoGrafica(ctxGraf, cd, [-0.5, nMax + 0.5], [lo, hi], { titulo, ejeX: 'n.º de pico', ejeY: 'ln Aₙ' });
+    const t0 = aj.tiempos[0], t1 = aj.tiempos[aj.tiempos.length - 1];
+    const recta = t => aj.b + aj.a * t;
+    const [lo, hi] = rangoCon(Math.min(...aj.ln, recta(t0), recta(t1)), Math.max(...aj.ln, recta(t0), recta(t1)), 0.1);
+    const [ta0, tb0] = rangoCon(t0, t1, 0.05);
+    const g = marcoGrafica(ctxGraf, cd, [ta0, tb0], [lo, hi], { titulo, ejeX: 'tₙ (s)', ejeY: 'ln Aₙ' });
     recortar(ctxGraf, cd);
-    trazarSerie(ctxGraf, [0, nMax], n => [g.X(n), g.Y(aj.b + aj.a * n)], TINTA.mod, 1.8);
-    ln.forEach((v, i) => punto(ctxGraf, g.X(i), g.Y(v), 3.4, TINTA.fen, '#050914'));
+    trazarSerie(ctxGraf, [t0, t1], t => [g.X(t), g.Y(recta(t))], TINTA.mod, 1.8);
+    aj.ln.forEach((v, i) => punto(ctxGraf, g.X(aj.tiempos[i]), g.Y(v), 3.4, TINTA.fen, '#050914'));
     ctxGraf.restore();
-    const bien = Math.abs(aj.zetaEst - aj.zetaTeo) / Math.max(1e-9, aj.zetaTeo) < 0.15;
     recuadro(ctxGraf, [
       { texto: `ζ de los datos = ${aj.zetaEst.toFixed(4)}`, color: TINTA.fen },
       { texto: `ζ del modelo   = ${aj.zetaTeo.toFixed(4)}`, color: TINTA.mod },
-      { texto: `R² = ${aj.r2.toFixed(4)}`, color: bien ? TINTA.vel : TINTA.dif }
+      { texto: `R² = ${aj.r2.toFixed(4)}`, color: aj.r2 >= 0.98 ? TINTA.vel : TINTA.dif }
     ], cd.x1 - 6, cd.y1 + 8, cd.x1, true);
   }
 }
@@ -1780,15 +1835,29 @@ selFenomeno.addEventListener('change', (e) => {
 
 selEfecto.addEventListener('change', (e) => {
   P.efecto = e.target.value;
+  diagElegido = null;
+  textoDiag.innerHTML = '';
   reiniciarSimulacion();
   recalcular();
 });
 
 btnExamen.addEventListener('click', () => {
+  if (examen) {
+    // salir: se revela el efecto y se devuelve el control del selector
+    examen = false;
+    selEfecto.disabled = false;
+    selEfecto.value = P.efecto;
+    btnExamen.textContent = 'Modo examen (al azar y oculto)';
+    textoDiag.innerHTML = `Fin del modo examen. El efecto era: <b>${textoEfecto(P.efecto)}</b>.`;
+    mostrarVeredicto();
+    return;
+  }
   const opciones = ['seco', 'no_lineal', 'cuadratica'];
   P.efecto = opciones[Math.floor(Math.random() * opciones.length)];
-  selEfecto.value = P.efecto;
+  examen = true;
+  selEfecto.value = 'oculto';
   selEfecto.disabled = true;
+  btnExamen.textContent = 'Salir del modo examen (revela el efecto)';
   diagElegido = null;
   textoDiag.innerHTML = 'Modo examen: el efecto está oculto. Observe y diagnostique.';
   reiniciarSimulacion();
@@ -1799,13 +1868,18 @@ document.querySelectorAll('button[data-diag]').forEach(b => {
   b.addEventListener('click', () => {
     diagElegido = b.dataset.diag;
     const acierto = diagElegido === P.efecto;
+    const clasificador = sim.diag.efecto === P.efecto
+      ? `El clasificador numérico llegó a lo mismo: ${sim.diag.evidencia}.`
+      : `El clasificador numérico propuso «${textoEfecto(sim.diag.efecto)}»: con estos parámetros el efecto ` +
+        `apenas se distingue del modelo lineal.`;
     textoDiag.innerHTML = acierto
-      ? `<span class="ok">✔ Correcto: el efecto presente es ${textoEfecto(P.efecto)}.</span> ` +
-        `El clasificador numérico también lo detectó: ${sim.diag.evidencia}.`
+      ? `<span class="ok">✔ Correcto: el efecto presente es ${textoEfecto(P.efecto)}.</span> ${clasificador}`
       : `<span class="mal">✘ No es ese.</span> Compare la curva del fenómeno con la del modelo: ` +
-        `discrepancia actual ${eDisc.textContent}. Pista metodológica: si el pico de resonancia se corre, ` +
-        `el problema está en la rigidez; si el decaimiento por ciclo es constante, hay rozamiento fijo; ` +
-        `si crece con la amplitud, el frenado es cuadrático.`;
+        `discrepancia actual ${eDisc.textContent}. Pista metodológica: ponga F₀ = 0 y suéltelo. Si la ` +
+        `oscilación grande es más lenta que la pequeña, el problema está en la rigidez; si la masa se queda ` +
+        `quieta fuera del equilibrio o el decaimiento por ciclo es constante, hay rozamiento fijo; si el ` +
+        `decaimiento relativo crece con la amplitud, el frenado es cuadrático.`;
+    mostrarVeredicto();
   });
 });
 
@@ -1941,7 +2015,7 @@ function construirXLSX(hojas) {
 
 function nombreArchivo(ext) {
   const f = P.fenomeno === 'resorte' ? 'resorte' : 'rlc';
-  const e = P.efecto === 'ninguno' ? 'lineal' : P.efecto;
+  const e = efectoOculto() ? 'examen' : (P.efecto === 'ninguno' ? 'lineal' : P.efecto);
   return `lab-ode-02-${f}-${e}.${ext}`;
 }
 function descargar(nombre, blob) {
@@ -1961,18 +2035,18 @@ function hojasDeDatos() {
   const wr = frecuenciaResonancia(P.m, P.c, P.k);
   const med = medir() || { am: 0, amod: 0, rms: 0 };
   const esResorte = P.fenomeno === 'resorte';
-  const delFen = esResorte ? 'x fenomeno (m)' : 'q fenomeno (mC)';
-  const delMod = esResorte ? 'x modelo (m)' : 'q modelo (mC)';
+  const delFen = esResorte ? 'x fenomeno (m)' : 'q fenomeno (C)';
+  const delMod = esResorte ? 'x modelo (m)' : 'q modelo (C)';
 
   const datos = [[
     't (s)', delFen, delMod, 'diferencia (fen - mod)',
-    esResorte ? 'v fenomeno (m/s)' : 'i fenomeno (mA)',
-    esResorte ? 'v modelo (m/s)' : 'i modelo (mA)',
-    esResorte ? 'E mecanica (J)' : 'energia (u.a.)',
+    esResorte ? 'v fenomeno (m/s)' : 'i fenomeno (A)',
+    esResorte ? 'v modelo (m/s)' : 'i modelo (A)',
+    esResorte ? 'E mecanica (J)' : 'energia (J)',
     esResorte ? 'F(t) (N)' : 'V(t) (V)'
   ]];
   for (const [t, xf, vf, xm, vm] of sim.hist) {
-    const energia = 0.5 * P.m * vf * vf + 0.5 * P.k * xf * xf;
+    const energia = 0.5 * P.m * vf * vf + energiaPotencial(P, P.efecto, xf);
     datos.push([r6(t), r6(xf), r6(xm), r6(xf - xm), r6(vf), r6(vm), r6(energia),
                 r6(P.F0 * Math.cos(P.w * t))]);
   }
@@ -1983,10 +2057,10 @@ function hojasDeDatos() {
     ['rigidez / elastancia', P.k, esResorte ? 'N/m' : '1/F', 'k'],
     ['fuerza / tension', P.F0, esResorte ? 'N' : 'V', 'F0'],
     ['frecuencia de excitacion', P.w, 'rad/s', 'w'],
-    ['condicion inicial de posicion / carga', P.x0, esResorte ? 'm' : 'mC', 'x0'],
-    ['condicion inicial de velocidad / corriente', P.v0, esResorte ? 'm/s' : 'mA', 'v0'],
+    ['condicion inicial de posicion / carga', P.x0, esResorte ? 'm' : 'C', 'x0'],
+    ['condicion inicial de velocidad / corriente', P.v0, esResorte ? 'm/s' : 'A', 'v0'],
     ['fenomeno', esResorte ? 'resorte-masa-amortiguador' : 'circuito RLC serie', '', ''],
-    ['efecto no modelado presente', P.efecto, '', ''],
+    ['efecto no modelado presente', efectoOculto() ? 'oculto (modo examen)' : P.efecto, '', ''],
     ['omega0', r6(cl.w0), 'rad/s', 'sqrt(k/m)'],
     ['zeta', r6(cl.zeta), '', 'c/(2 sqrt(km))'],
     ['regimen', cl.regimen, '', ''],
@@ -1995,13 +2069,13 @@ function hojasDeDatos() {
     ['desfase teorico', r6(amp.fase), 'rad', 'phi']];
 
   const metricas = [['metrica', 'valor', 'unidad'],
-    ['amplitud medida (fenomeno)', r6(med.am), esResorte ? 'm' : 'mC'],
-    ['amplitud del modelo', r6(med.amod), esResorte ? 'm' : 'mC'],
+    ['amplitud medida (fenomeno)', r6(med.am), esResorte ? 'm' : 'C'],
+    ['amplitud del modelo', r6(med.amod), esResorte ? 'm' : 'C'],
     ['discrepancia relativa', r6(Math.abs(med.am - med.amod) / Math.max(1e-9, med.amod) * 100), '%'],
-    ['diferencia RMS', r6(med.rms), esResorte ? 'm' : 'mC'],
+    ['diferencia RMS', r6(med.rms), esResorte ? 'm' : 'C'],
     ['muestras exportadas', sim.hist.length, ''],
-    ['veredicto del clasificador', sim.diag ? sim.diag.efecto : '', ''],
-    ['evidencia del clasificador', sim.diag ? sim.diag.evidencia : '', '']];
+    ['veredicto del clasificador', !sim.diag ? '' : efectoOculto() ? 'oculto (modo examen)' : sim.diag.efecto, ''],
+    ['evidencia del clasificador', !sim.diag || efectoOculto() ? '' : sim.diag.evidencia, '']];
 
   const resonancia = [['omega (rad/s)', 'amplitud medida en el fenomeno', 'amplitud del modelo lineal', 'diferencia']];
   for (const b of sim.barrido) {

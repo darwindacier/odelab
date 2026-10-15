@@ -34,7 +34,7 @@ const check = (n, c, extra = "") => {
 };
 const cerca = (a, b, tol) => Math.abs(a - b) <= tol;
 const base = { m: 1, c: 0.5, k: 10, F0: 2, w: 2, x0: 1, v0: 0, efecto: 'ninguno',
-               Fc: 0.5, k3rel: -0.35, c2rel: 0.8 };
+               Fc: 0.5, ablanda: 0.35, c2rel: 0.8 };
 
 // 1. Clasificación
 check("zeta<1 subamortiguado", clasificar(1, 0.5, 10).regimen === 'subamortiguado');
@@ -94,6 +94,65 @@ for (const [efecto, que] of [['ninguno', 'modelo lineal'], ['seco', 'rozamiento 
   const d = diagnosticar(Object.assign({}, base, { efecto: efecto }));
   check(`diagnostica «${que}»`, d.efecto === efecto,
         `dijo «${d.efecto}» · ${d.evidencia.slice(0, 58)}…`);
+}
+
+// 6b. Clasificador en los casos que antes fallaban: sin excitación y sin pico de resonancia
+for (const efecto of EFECTOS) {
+  const d = diagnosticar(Object.assign({}, base, { F0: 0, efecto: efecto }));
+  check(`con F0=0 diagnostica «${efecto}»`, d.efecto === efecto, `dijo «${d.efecto}»`);
+}
+const cCrit = 2 * Math.sqrt(base.k * base.m);
+for (const [nombre, c] of [['crítico', cCrit], ['sobreamortiguado', 2.4 * cCrit], ['zeta=0.75 (sin pico)', 1.5 * Math.sqrt(base.k * base.m)]]) {
+  const d = diagnosticar(Object.assign({}, base, { c: c, efecto: 'ninguno' }));
+  check(`régimen ${nombre} sin efecto: no inventa uno`, d.efecto === 'ninguno', `dijo «${d.efecto}»`);
+}
+
+// 6c. Barrido de robustez: aciertos y, sobre todo, ningún efecto inventado ni confundido
+{
+  let total = 0, aciertos = 0, inventados = 0, confundidos = 0;
+  for (const m of [0.5, 1, 3]) for (const k of [2, 10, 30]) for (const zeta of [0.03, 0.1, 0.2])
+  for (const F0 of [0, 2]) for (const x0 of [0.3, -1.5]) for (const efecto of EFECTOS) {
+    const P = Object.assign({}, base, { m, k, c: 2 * zeta * Math.sqrt(k * m), F0, w: 0.9 * Math.sqrt(k / m), x0, efecto });
+    const d = diagnosticar(P).efecto;
+    total++;
+    if (d === efecto) aciertos++;
+    else if (efecto === 'ninguno') inventados++;
+    else if (d !== 'ninguno') confundidos++;
+  }
+  check("barrido del clasificador: al menos 95 % de aciertos", aciertos / total >= 0.95, `${aciertos}/${total}`);
+  check("barrido del clasificador: nunca inventa un efecto en el modelo lineal", inventados === 0, `${inventados}`);
+  check("barrido del clasificador: nunca confunde un efecto con otro", confundidos === 0, `${confundidos}`);
+}
+
+// 6d. El resorte que se ablanda no diverge (antes llegaba a 1e38 en menos de 1 s)
+for (const [x0, v0, F0, w, c] of [[1.5, 3, 0, 2, 0], [0, 0, 4, 2.6, 0.3], [2, 3, 10, 1, 0]]) {
+  const Q = Object.assign({}, base, { F0, w, c, efecto: 'no_lineal' });
+  const pts = integrarEstado(Q, 'no_lineal', 0, [x0, v0], 60, 1 / 240);
+  const fin = pts[pts.length - 1];
+  check(`resorte no lineal acotado (x0=${x0}, v0=${v0}, F0=${F0})`,
+        cerca(fin[0], 60, 1e-6) && pts.every(p => Number.isFinite(p[1]) && Math.abs(p[1]) < 1e3),
+        `t final=${fin[0].toFixed(2)}`);
+}
+{
+  const Q = Object.assign({}, base, { c: 0, F0: 0, efecto: 'no_lineal' });
+  const pts = integrarEstado(Q, 'no_lineal', 0, [1.5, 0], 20, 0.001);
+  const En = p => 0.5 * Q.m * p[2] * p[2] + energiaPotencial(Q, 'no_lineal', p[1]);
+  const E0 = En(pts[0]);
+  const deriva = pts.reduce((m, p) => Math.max(m, Math.abs(En(p) - E0)), 0);
+  check("energía del resorte no lineal conservada sin amortiguamiento (<1e-6)", deriva < 1e-6,
+        `deriva=${deriva.toExponential(2)}`);
+}
+
+// 6e. Rozamiento seco: la masa se queda pegada de verdad (sin vibrar) dentro de la banda |k x| <= Fc
+{
+  const Q = Object.assign({}, base, { F0: 0, efecto: 'seco' });
+  const pts = integrarEstado(Q, 'seco', 0, [1, 0], 30, 1 / 240);
+  const cola = pts.slice(Math.floor(pts.length * 0.8));
+  const fin = pts[pts.length - 1];
+  const recorrido = Math.max(...cola.map(p => p[1])) - Math.min(...cola.map(p => p[1]));
+  check("rozamiento seco: se detiene sin vibrar", recorrido < 1e-6, `recorrido=${recorrido.toExponential(2)}`);
+  check("rozamiento seco: se detiene donde el resorte no vence a Fc", Q.k * Math.abs(fin[1]) <= Q.Fc + 1e-9,
+        `x=${fin[1].toFixed(4)}`);
 }
 
 // 7. Exportación a Excel: se genera el archivo y se revisa
@@ -158,6 +217,22 @@ revisar("la hoja Resonancia trae el barrido", wsr.max_row == 21, f"{wsr.max_row}
 revisar("celdas vacías se leen como None", wb['Metricas']['C3'].value is None)
 
 print("\nRESULTADO:", "exportación verificada" if ok else "revisar la exportación")
+
+# --- Revisión estática de la página: errores de contenido que ya aparecieron una vez ---
+print("\n--- contenido de la página ---")
+texto = HTML.read_text(encoding="utf-8")
+cmax = float(re.search(r'id="r2"[^>]*max="([\d.]+)"', texto).group(1))
+revisar("el deslizador de c alcanza el amortiguamiento crítico de todo el rango",
+        cmax >= 2 * (5 * 40) ** 0.5, f"max={cmax} frente a 2·sqrt(5·40)={2 * (5 * 40) ** 0.5:.2f}")
+revisar("el RLC no usa mC ni mA (las ecuaciones están en C y A)",
+        not re.search(r"\bm[CA]\b", texto))
+revisar("ln(A_n) se grafica contra t_n, no contra el número de ciclo",
+        "contra el número de ciclo" not in texto and "contra el instante" in texto)
+revisar("el modo examen no escribe el efecto en el selector al empezar",
+        'value="oculto"' in texto and "selEfecto.value = 'oculto'" in texto)
+revisar("la historia guarda 20 s (4800 pasos de 1/240 s)", "HIST_MAX = 4800" in texto)
+
+print("\nRESULTADO:", "laboratorio verificado" if ok else "revisar el laboratorio")
 sys.exit(0 if ok else 1)
 
 

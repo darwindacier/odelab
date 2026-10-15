@@ -391,7 +391,7 @@ tbody tr:hover td{background:rgba(34,211,238,.05)}
     </div>
 
     <div class="tarjeta">
-      <h2>Modelo y clasificación<button class="ayuda" data-ayuda="ω₀ y ζ resumen el sistema: ζ decide el régimen (subamortiguado, crítico o sobreamortiguado). λ y τ hacen lo propio en los fenómenos de primer orden.">?</button></h2>
+      <h2>Modelo y clasificación<button class="ayuda" data-ayuda="λ y τ = 1/λ resumen el sistema: τ es el tiempo en que se recorre el 63,2 % del camino al equilibrio y∞ = b/λ.">?</button></h2>
       <table><tbody id="tablaModelo"></tbody></table>
       <div class="nota" id="notaModelo"></div>
     </div>
@@ -695,6 +695,9 @@ function derivadaReal(P, efecto) {
   if (P.fenomeno === 'tanque') {
     // estado: [c, V]
     return function (t, s) {
+      // con la fuga el tanque se vacía: por debajo del 2 % de V0 se considera vacío y todo se detiene
+      // (seguir integrando con V → 0 haría Q/V enorme y la ecuación rígida)
+      if (ef === 'fuga' && s[1] <= 0.02 * P.V0) return [0, 0];
       const c = s[0], V = Math.max(1e-6, s[1]);
       let dc = (P.Q / V) * (P.cin - c);
       let dV = 0;
@@ -710,7 +713,8 @@ function derivadaReal(P, efecto) {
       const T = s[0], Tamb = s[1];
       let dT = -P.k * (T - Tamb);
       if (ef === 'ambiente') { /* el ambiente se calienta: acoplamiento débil */ }
-      if (ef === 'radiacion') dT -= P.sigma * (Math.pow(Math.max(0, T) / 100, 4) - Math.pow(Math.max(0, Tamb) / 100, 4));
+      // Stefan-Boltzmann: la radiación depende de la temperatura absoluta (kelvin), no de los °C
+      if (ef === 'radiacion') dT -= P.sigma * (Math.pow((T + 273.15) / 100, 4) - Math.pow((Tamb + 273.15) / 100, 4));
       return [dT, ef === 'ambiente' ? P.kAmb * (T - Tamb) : 0];
     };
   }
@@ -767,9 +771,13 @@ function ajusteLineal(xs, ys) {
 
 function estimarTau(serie, yInf, salto) {
   const xs = [], ys = [];
+  // la cola pegada al equilibrio es redondeo: ln|y − y∞| deja de ser recta, así que se descarta
+  let dMax = 0;
+  for (const p of serie) dMax = Math.max(dMax, Math.abs(p[1] - yInf));
+  const piso = Math.max(1e-9, 1e-4 * dMax);
   for (let i = 0; i < serie.length; i += Math.max(1, Math.round(salto)) ) {
     const d = Math.abs(serie[i][1] - yInf);
-    if (d > 1e-9) { xs.push(serie[i][0]); ys.push(Math.log(d)); }
+    if (d > piso) { xs.push(serie[i][0]); ys.push(Math.log(d)); }
   }
   if (xs.length < 5) return null;
   const { a, r2 } = ajusteLineal(xs, ys);
@@ -778,50 +786,69 @@ function estimarTau(serie, yInf, salto) {
 }
 
 /* ---- clasificador: mide el fenómeno y propone el efecto no modelado ---- */
+/* Integra el fenómeno hasta que de verdad se estanque: el horizonte arranca en 25 τ del modelo y se
+   triplica mientras la señal siga cambiando. Así un τ real mayor (resistencia en serie) no se
+   confunde con un equilibrio más bajo (fuga). */
+function simularHastaEquilibrio(P, tau) {
+  let T = Math.max(25 * tau, 10), serie = null;
+  for (let intento = 0; intento < 6; intento++) {
+    serie = simularReal(P, T, Math.max(0.002, T / 4000));
+    const fin = serie[serie.length - 1], antes = serie[Math.floor(serie.length * 0.9)];
+    const escala = Math.max(1e-9, Math.abs(fin[1] - serie[0][1]), Math.abs(fin[1]));
+    if (Math.abs(fin[1] - antes[1]) <= 1e-7 * escala) break;
+    T *= 3;
+  }
+  return serie;
+}
+
+/* Sin efecto el modelo es exacto, así que los umbrales pueden ser finos (0.2 %):
+   lo que no explique la ecuación afín ya es evidencia. */
 function diagnosticar(P) {
   const m = modeloDe(P);
-  // Se integra un horizonte largo para que un τ mayor que el del modelo no se
-  // confunda con una fuga: sólo un estancamiento real cuenta como plateau.
-  const T = Math.max(25 * m.tau, 10);
-  const serie = simularReal(P, T, Math.max(0.002, T / 4000));
+  const serie = simularHastaEquilibrio(P, m.tau);
   const fin = serie[serie.length - 1];
-  const inicio = serie[0];
   const yMed = fin[1];
+  const tol = 2e-3;
   if (P.fenomeno === 'tanque') {
     const Vfin = fin[2];
-    if (Vfin < 0.94 * P.V0) {
+    if (Vfin < (1 - tol) * P.V0) {
       return { efecto: 'fuga', evidencia: `el volumen bajó de ${P.V0.toFixed(1)} a ${Vfin.toFixed(1)} L: sale mezcla por una grieta` };
     }
-    if (yMed < 0.92 * P.cin) {
+    if (yMed < (1 - tol) * P.cin) {
       return { efecto: 'degradacion', evidencia: `la concentración se quedó en ${yMed.toFixed(3)} g/L cuando el modelo predice ${P.cin.toFixed(3)}: parte del soluto se transforma` };
     }
-    if (yMed > 1.02 * P.cin) {
+    if (yMed > (1 + tol) * P.cin) {
       return { efecto: 'aporte', evidencia: `la concentración superó la de entrada (${yMed.toFixed(3)} > ${P.cin.toFixed(3)}): hay una fuente extra` };
     }
     return { efecto: 'ninguno', evidencia: `la concentración llega a ${yMed.toFixed(3)} g/L, como predice el modelo` };
   }
   if (P.fenomeno === 'newton') {
+    const salto = Math.abs(P.T0 - P.Tenv);
+    if (salto < 1e-9) {
+      return { efecto: 'ninguno', evidencia: 'el objeto ya está a la temperatura ambiente: no hay transitorio que medir' };
+    }
     const tambFin = fin[2];
-    const yTeo = afinSolucion(m.lam, m.b, P.T0, T);
-    if (tambFin > P.Tenv + 0.05 * Math.max(1e-9, Math.abs(P.T0 - P.Tenv))) {
-      return { efecto: 'ambiente', evidencia: `el ambiente subió de ${P.Tenv.toFixed(1)} a ${tambFin.toFixed(1)} °C: se está calentando con el objeto` };
+    if (Math.abs(tambFin - P.Tenv) > tol * salto) {
+      return { efecto: 'ambiente', evidencia: `el ambiente ${tambFin > P.Tenv ? 'subió' : 'bajó'} de ${P.Tenv.toFixed(1)} a ${tambFin.toFixed(1)} °C: no es un baño infinito, el objeto lo cambia` };
     }
-    const rateIni = Math.abs((serie[1][1] - serie[0][1]) / (serie[1][0] - serie[0][0] || 1));
+    // derivada inicial con diferencia de segundo orden: el error de truncamiento queda muy por debajo del 1 %
+    const hs = serie[1][0] - serie[0][0];
+    const rateIni = Math.abs((-3 * serie[0][1] + 4 * serie[1][1] - serie[2][1]) / (2 * hs));
     const rateTeo = Math.abs(P.k * (P.T0 - P.Tenv));
-    if (rateIni > 1.15 * rateTeo) {
-      return { efecto: 'radiacion', evidencia: `al inicio enfría a ${rateIni.toFixed(3)} °C/s y el modelo dice ${rateTeo.toFixed(3)}: hay pérdida extra, tipo radiación` };
+    if (rateIni > 1.01 * rateTeo) {
+      return { efecto: 'radiacion', evidencia: `al inicio cambia a ${rateIni.toFixed(3)} °C/s y el modelo dice ${rateTeo.toFixed(3)}: hay un intercambio de calor extra, tipo radiación` };
     }
-    if (Math.abs(yMed - yTeo) < 1e-6) {
-      return { efecto: 'ninguno', evidencia: 'la temperatura sigue la ley lineal de enfriamiento' };
-    }
-    return { efecto: 'ninguno', evidencia: `la temperatura final (${yMed.toFixed(3)} °C) coincide con la del modelo` };
+    return { efecto: 'ninguno', evidencia: `la temperatura llega a ${yMed.toFixed(3)} °C al ritmo que predice el modelo (${P.Tenv.toFixed(3)} °C, τ = ${m.tau.toFixed(2)} s)` };
   }
   const yInfTeo = P.Vf;
-  if (yMed < 0.94 * yInfTeo) {
+  if (yMed < (1 - tol) * yInfTeo) {
     return { efecto: 'fuga', evidencia: `la tensión se estancó en ${yMed.toFixed(3)} V en vez de ${yInfTeo.toFixed(3)} V: hay una resistencia de fuga en paralelo` };
   }
+  if (Math.abs(P.v0 - P.Vf) <= tol * Math.max(1e-9, Math.abs(P.Vf))) {
+    return { efecto: 'ninguno', evidencia: 'el capacitor ya arranca en la tensión de la fuente: sin transitorio no se puede medir τ' };
+  }
   const est = estimarTau(serie, yMed, 4);
-  if (est && est.tau > 1.12 * m.tau) {
+  if (est && est.tau > 1.05 * m.tau) {
     return { efecto: 'serie', evidencia: `el τ medido es ${est.tau.toFixed(2)} s y el modelo dice ${m.tau.toFixed(2)} s: hay resistencia adicional en serie` };
   }
   return { efecto: 'ninguno', evidencia: `la carga sigue la exponencial del modelo (τ = ${m.tau.toFixed(2)} s)` };
@@ -1055,7 +1082,7 @@ function instalarInteraccion(cv, graf, ventana, redibujar) {
 const P = { fenomeno: 'tanque', Q: 2, V0: 20, cin: 1, c0: 0,
             k: 0.05, Tenv: 20, T0: 90,
             R: 10, C: 1, Vf: 10, v0: 0,
-            efecto: 'ninguno', fuga: 0.08, kdeg: 0.04, aporte: 0.02, sigma: 1.4, kAmb: 0.02,
+            efecto: 'ninguno', fuga: 0.08, kdeg: 0.04, aporte: 0.02, sigma: 0.009, kAmb: 0.02,
             Rf: 60, Rserie: 12 };
 
 const CONTROLES = {
@@ -1112,6 +1139,8 @@ const eMed = document.getElementById('eMed'), eTauMed = document.getElementById(
 let sim = { t: 0, real: null, mod: 0, hist: [], diag: null, ajuste: null };
 let velocidad = 1;
 let pausado = false;
+let examen = false;          // modo examen: el efecto queda oculto hasta que el estudiante diagnostique
+let diagElegido = null;
 const graf = { verFen: true, verMod: true, verAsin: true, panel: 'equilibrio',
                zoom: 1, cx: 0.5, cursor: null, arrastrando: false, ultimoX: 0 };
 
@@ -1131,7 +1160,7 @@ function reiniciarSimulacion() {
   sim.mod = modeloDe(P).y0;
   sim.hist = [];
 }
-function avanzar(dt) {
+function avanzar(dt, guardar) {
   const m = modeloDe(P);
   const der = derivadaReal(P, P.efecto);
   const s = sim.real;
@@ -1146,6 +1175,7 @@ function avanzar(dt) {
               s[1] + (dt / 6) * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1])];
   sim.mod = afinSolucion(m.lam, m.b, m.y0, sim.t + dt);
   sim.t += dt;
+  if (!guardar) return;
   sim.hist.push([sim.t, sim.real[0], sim.real[1], sim.mod]);
   if (sim.hist.length > 1400) sim.hist.shift();
 }
@@ -1172,9 +1202,17 @@ function recalcular() {
                                newton: 'La taza pierde calor hacia el ambiente; el ambiente se supone constante e infinito.',
                                rc: 'El capacitor se carga a través de R hasta la tensión de la fuente.' }[P.fenomeno];
   sim.diag = diagnosticar(P);
-  veredicto.innerHTML = `<b>Clasificador:</b> ${textoEfecto(sim.diag.efecto)}.<br />` +
-    `<span style="opacity:.85">Evidencia: ${sim.diag.evidencia}.</span>`;
+  mostrarVeredicto();
   dibujar();
+}
+
+/* En modo examen el veredicto del clasificador delataría la respuesta: se muestra tras diagnosticar. */
+function efectoOculto() { return examen && diagElegido === null; }
+function mostrarVeredicto() {
+  veredicto.innerHTML = efectoOculto()
+    ? '<b>Clasificador:</b> oculto en modo examen hasta que dé su diagnóstico.'
+    : `<b>Clasificador:</b> ${textoEfecto(sim.diag.efecto)}.<br />` +
+      `<span style="opacity:.85">Evidencia: ${sim.diag.evidencia}.</span>`;
 }
 
 function medir() {
@@ -1547,8 +1585,11 @@ function dibujar() { dibujarFenomeno(); dibujarGraficas(); }
 
 function bucle() {
   if (!pausado) {
-    const sub = Math.max(1, Math.round(velocidad * 6));
-    for (let k = 0; k < sub; k++) avanzar(1 / 240);
+    // el reloj se adapta a τ (de 0.1 a 300 s): unos 5 τ pasan en ~8 s de pantalla y la historia
+    // (1400 cuadros) cubre unos 14 τ, así siempre se ve el camino completo al equilibrio
+    const dtCuadro = velocidad * Math.max(0.025, modeloDe(P).tau / 100);
+    const sub = 6;
+    for (let k = 0; k < sub; k++) avanzar(dtCuadro / sub, k === sub - 1);
   }
   dibujar();
   actualizarPanel();
@@ -1566,17 +1607,23 @@ function sincronizarControles() {
     document.getElementById('e' + (i + 1)).textContent = d.fmt(d.v());
   }
   const ops = EFECTOS_POR_FENOMENO[P.fenomeno];
-  selEfecto.innerHTML = ops.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+  selEfecto.innerHTML = ops.map(([v, t]) => `<option value="${v}">${t}</option>`).join('') +
+    '<option value="oculto" hidden>Oculto (modo examen)</option>';
   if (!ops.some(([v]) => v === P.efecto)) P.efecto = 'ninguno';
   selEfecto.value = P.efecto;
   filaDiag.innerHTML = ops.filter(([v]) => v !== 'ninguno')
     .map(([v, t]) => `<button class="mini" data-diag="${v}">${t}</button>`).join('');
   filaDiag.querySelectorAll('button[data-diag]').forEach((b) => {
     b.addEventListener('click', () => {
-      const acierto = b.dataset.diag === P.efecto;
+      diagElegido = b.dataset.diag;
+      const acierto = diagElegido === P.efecto;
+      const clasificador = sim.diag.efecto === P.efecto
+        ? `El clasificador numérico llegó a lo mismo: ${sim.diag.evidencia}.`
+        : `El clasificador numérico propuso «${textoEfecto(sim.diag.efecto)}»: con estos parámetros el efecto apenas se distingue del modelo.`;
       textoDiag.innerHTML = acierto
-        ? `<span class="ok">✔ Correcto: el efecto presente es ${textoEfecto(P.efecto)}.</span> El clasificador también lo detectó: ${sim.diag.evidencia}.`
+        ? `<span class="ok">✔ Correcto: el efecto presente es ${textoEfecto(P.efecto)}.</span> ${clasificador}`
         : `<span class="mal">✘ No es ese.</span> Compare la curva del fenómeno con la del modelo y mire el valor final: si se estanca antes, falta material o hay una fuga; si el tiempo característico cambió, el problema está en λ.`;
+      mostrarVeredicto();
     });
   });
 }
@@ -1597,22 +1644,43 @@ function leerControles() {
 selFenomeno.addEventListener('change', (e) => {
   P.fenomeno = e.target.value;
   P.efecto = 'ninguno';
+  diagElegido = null;
+  textoDiag.innerHTML = '';
   sincronizarControles();
+  salirDeExamen();
   leerControles();
   reiniciarSimulacion();
   recalcular();
 });
 selEfecto.addEventListener('change', (e) => {
   P.efecto = e.target.value;
-  selEfecto.disabled = false;
+  diagElegido = null;
+  textoDiag.innerHTML = '';
   reiniciarSimulacion();
   recalcular();
 });
-document.getElementById('btnExamen').addEventListener('click', () => {
+const btnExamen = document.getElementById('btnExamen');
+function salirDeExamen() {
+  examen = false;
+  selEfecto.disabled = false;
+  selEfecto.value = P.efecto;
+  btnExamen.textContent = 'Modo examen (al azar y oculto)';
+}
+btnExamen.addEventListener('click', () => {
+  if (examen) {
+    // salir: se revela el efecto y se devuelve el control del selector
+    salirDeExamen();
+    textoDiag.innerHTML = `Fin del modo examen. El efecto era: <b>${textoEfecto(P.efecto)}</b>.`;
+    mostrarVeredicto();
+    return;
+  }
   const ops = EFECTOS_POR_FENOMENO[P.fenomeno].filter(([v]) => v !== 'ninguno').map(([v]) => v);
   P.efecto = ops[Math.floor(Math.random() * ops.length)];
-  selEfecto.value = P.efecto;
+  examen = true;
+  diagElegido = null;
+  selEfecto.value = 'oculto';
   selEfecto.disabled = true;
+  btnExamen.textContent = 'Salir del modo examen (revela el efecto)';
   textoDiag.innerHTML = 'Modo examen: el efecto está oculto. Observe, ajuste τ con los datos y diagnostique.';
   reiniciarSimulacion();
   recalcular();
@@ -1623,7 +1691,7 @@ document.getElementById('btnEquilibrio').addEventListener('click', () => {
   sim.hist = [];
   sim.t = 0;
   sim.mod = m.inf;
-  sim.real = P.fenomeno === 'tanque' ? [m.inf, P.V0] : [m.inf, 0];
+  sim.real = [m.inf, estadoInicialReal(P)[1]];   // el ambiente de Newton sigue en T_amb, el tanque en V0
   dibujar();
 });
 ['gFen', 'gMod', 'gAsin'].forEach((id) => {
@@ -1766,7 +1834,7 @@ function descargar(nombre, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 function nombreArchivo(ext) {
-  const e = P.efecto === 'ninguno' ? 'lineal' : P.efecto;
+  const e = efectoOculto() ? 'examen' : (P.efecto === 'ninguno' ? 'lineal' : P.efecto);
   return `lab-ode-03-${P.fenomeno}-${e}.${ext}`;
 }
 const r6 = (v) => Math.round(v * 1e6) / 1e6;
@@ -1788,7 +1856,7 @@ function hojasDeDatos() {
     ['tau', r6(m.tau), 's', '1/lambda'],
     ['equilibrio', r6(m.inf), m.unidad, 'y_inf'],
     ['valor inicial', r6(m.y0), m.unidad, 'y0'],
-    ['efecto no modelado', P.efecto, '', '']];
+    ['efecto no modelado', efectoOculto() ? 'oculto (modo examen)' : P.efecto, '', '']];
   if (P.fenomeno === 'tanque') parametros.push(['caudal', r6(P.Q), 'L/s', 'Q'], ['volumen inicial', r6(P.V0), 'L', 'V0'],
     ['concentracion de entrada', r6(P.cin), 'g/L', 'c_in'], ['concentracion inicial', r6(P.c0), 'g/L', 'c0']);
   if (P.fenomeno === 'newton') parametros.push(['coeficiente', r6(P.k), '1/s', 'k'], ['temperatura inicial', r6(P.T0), 'C', 'T0'],
@@ -1802,9 +1870,9 @@ function hojasDeDatos() {
     ['tau medido en los datos', med.tauReal ? r6(med.tauReal) : '', 's'],
     ['tau del modelo', r6(m.tau), 's'],
     ['muestras exportadas', sim.hist.length, ''],
-    ['veredicto del clasificador', sim.diag ? sim.diag.efecto : '', ''],
-    ['evidencia', sim.diag ? sim.diag.evidencia : '', '']];
-  const ajuste = [['ln|y - y_inf| ajustado', 'valor']];
+    ['veredicto del clasificador', !sim.diag ? '' : efectoOculto() ? 'oculto (modo examen)' : sim.diag.efecto, ''],
+    ['evidencia', !sim.diag || efectoOculto() ? '' : sim.diag.evidencia, '']];
+  const ajuste = [];
   const yInf = P.efecto === 'degradacion' && sim.hist.length ? sim.hist[sim.hist.length - 1][1] : m.inf;
   const puntos = [];
   for (let i = 0; i < sim.hist.length; i += 5) {
@@ -1840,12 +1908,22 @@ document.getElementById('btnXLSX').addEventListener('click', () => {
   document.getElementById('estadoExport').innerHTML = 'Excel descargado con las hojas Datos, Parametros, Metricas y Ajuste.';
 });
 document.getElementById('btnCSV').addEventListener('click', exportarCSV);
-document.getElementById('btnPNGgraf').addEventListener('click', () => {
-  cGraf.toBlob((b) => { if (b) descargar(`lab-ode-03-${P.fenomeno}-graficas.png`, b); }, 'image/png');
-});
-document.getElementById('btnPNGfen').addEventListener('click', () => {
-  cFen.toBlob((b) => { if (b) descargar(`lab-ode-03-${P.fenomeno}-fenomeno.png`, b); }, 'image/png');
-});
+/* El lienzo es transparente: sin fondo, el texto claro no se lee en un visor con fondo blanco. */
+function exportarPNG(cv, nombre) {
+  const dpr = window.devicePixelRatio || 1;
+  const copia = document.createElement('canvas');
+  copia.width = cv.width; copia.height = cv.height;
+  const c2 = copia.getContext('2d');
+  c2.fillStyle = '#050814';
+  c2.fillRect(0, 0, copia.width, copia.height);
+  c2.drawImage(cv, 0, 0);
+  c2.fillStyle = 'rgba(226,232,240,.9)';
+  c2.font = `${13 * dpr}px "Segoe UI", Inter, system-ui, sans-serif`;
+  c2.fillText(nombre, 12 * dpr, copia.height - 12 * dpr);
+  copia.toBlob((b) => { if (b) descargar(nombre.replace(/[^\w\-]+/g, '-').toLowerCase() + '.png', b); }, 'image/png');
+}
+document.getElementById('btnPNGgraf').addEventListener('click', () => exportarPNG(cGraf, `Lab ODE 03 · ${P.fenomeno} · ${graf.panel}`));
+document.getElementById('btnPNGfen').addEventListener('click', () => exportarPNG(cFen, `Lab ODE 03 · fenómeno · ${P.fenomeno}`));
 
 /* ---------- interfaz: avisos, panel plegable, pausa, rangos, guía y atajos ---------- */
 function avisar(texto, tipo) {

@@ -61,7 +61,7 @@ check("no quedan comandos sin traducir",
 // ---------- 2. Núcleo afín y los tres fenómenos ----------
 const P = { fenomeno: 'tanque', Q: 2, V0: 20, cin: 1, c0: 0, k: 0.05, Tenv: 20, T0: 90,
             R: 10, C: 1, Vf: 10, v0: 0, efecto: 'ninguno',
-            fuga: 0.08, kdeg: 0.04, aporte: 0.02, sigma: 1.4, kAmb: 0.02, Rf: 60, Rserie: 12 };
+            fuga: 0.08, kdeg: 0.04, aporte: 0.02, sigma: 0.009, kAmb: 0.02, Rf: 60, Rserie: 12 };
 
 const mt = modeloDe(P);
 check("tanque: λ = Q/V y τ = V/Q", cerca(mt.lam, 2 / 20, 1e-12) && cerca(mt.tau, 10, 1e-12));
@@ -120,6 +120,58 @@ check("el ambiente se calienta de verdad",
 check("una R de fuga deja el capacitor por debajo de V_f",
       mide('rc', 'fuga', 400).y < 0.95 * P.Vf, `${mide('rc', 'fuga', 400).y.toFixed(3)} V`);
 
+// ---------- 5b. Casos del clasificador que antes fallaban ----------
+const diag = (o) => diagnosticar(Object.assign({}, P, o)).efecto;
+check("rc: resistencia en serie con R pequeña no se confunde con fuga",
+      diag({ fenomeno: 'rc', efecto: 'serie', R: 1 }) === 'serie', `dijo «${diag({ fenomeno: 'rc', efecto: 'serie', R: 1 })}»`);
+check("newton: el ambiente que se enfría (T0 < T_amb) también se detecta",
+      diag({ fenomeno: 'newton', efecto: 'ambiente', T0: 0 }) === 'ambiente');
+check("newton: radiación con T0 = 0 °C (en kelvin no desaparece)",
+      diag({ fenomeno: 'newton', efecto: 'radiacion', T0: 0 }) === 'radiacion');
+check("newton: radiación con k grande (convección fuerte)",
+      diag({ fenomeno: 'newton', efecto: 'radiacion', k: 0.4 }) === 'radiacion');
+check("tanque: degradación con caudal alto", diag({ efecto: 'degradacion', Q: 8, V0: 5 }) === 'degradacion');
+check("tanque: aporte con caudal alto", diag({ efecto: 'aporte', Q: 8, V0: 5 }) === 'aporte');
+{
+  const d = diagnosticar(Object.assign({}, P, { fenomeno: 'newton', efecto: 'ninguno', T0: 0 }));
+  check("newton sin efecto: la evidencia cita el equilibrio del modelo, no uno inventado",
+        d.efecto === 'ninguno' && d.evidencia.includes(P.Tenv.toFixed(3)), d.evidencia.slice(0, 70));
+}
+// barrido por los rangos de los deslizadores: todo efecto observable se detecta y nada se inventa
+{
+  const casosB = [];
+  for (const Q of [0.2, 2, 8]) for (const V0 of [5, 20, 60]) for (const cin of [0.1, 1, 3]) for (const c0 of [0, 3])
+    for (const efecto of ['ninguno', 'fuga', 'degradacion', 'aporte']) casosB.push({ fenomeno: 'tanque', Q, V0, cin, c0, efecto });
+  for (const k of [0.005, 0.05, 0.4]) for (const T0 of [0, 90, 200]) for (const Tenv of [-10, 20, 60]) for (const kAmb of [0.02, 0.1])
+    for (const efecto of ['ninguno', 'ambiente', 'radiacion']) if (T0 !== Tenv) casosB.push({ fenomeno: 'newton', k, T0, Tenv, kAmb, efecto });
+  // con v0 = Vf no hay transitorio: una resistencia en serie es inobservable, se excluye
+  for (const R of [1, 10, 60]) for (const C of [0.1, 1, 5]) for (const Vf of [1, 10, 24]) for (const v0 of [0, 24])
+    for (const efecto of ['ninguno', 'fuga', 'serie']) if (v0 !== Vf) casosB.push({ fenomeno: 'rc', R, C, Vf, v0, efecto });
+  let aciertos = 0;
+  const malos = [];
+  for (const c of casosB) { const d = diag(c); if (d === c.efecto) aciertos++; else malos.push(`${JSON.stringify(c)}→${d}`); }
+  check("barrido del clasificador en los tres fenómenos: todo acierta", aciertos === casosB.length,
+        `${aciertos}/${casosB.length}` + (malos.length ? ' · ' + malos[0] : ''));
+}
+
+// ---------- 5c. Física corregida ----------
+{
+  const Q = Object.assign({}, P, { efecto: 'fuga' });
+  const s = simularReal(Q, 2000, 0.05);
+  const fin = s[s.length - 1];
+  check("tanque con fuga: se vacía y se detiene, sin volumen negativo ni concentraciones absurdas",
+        cerca(fin[0], 2000, 1e-6) && s.every(p => p[2] >= 0.019 * P.V0 && Number.isFinite(p[1]) && p[1] <= P.cin + 1e-9),
+        `V final=${fin[2].toFixed(3)} L`);
+  const Pn = Object.assign({}, P, { fenomeno: 'newton' });
+  const enEquilibrio = [modeloDe(Pn).inf, estadoInicialReal(Pn)[1]];
+  const d0 = derivadaReal(Pn, 'ninguno')(0, enEquilibrio);
+  check("Newton en equilibrio (T = T_amb, ambiente en T_amb) no se mueve", d0[0] === 0 && d0[1] === 0);
+  const dr = derivadaReal(Object.assign({}, Pn, { T0: 0 }), 'radiacion')(0, [0, 20]);
+  check("radiación en kelvin: un objeto a 0 °C en un ambiente a 20 °C se calienta", dr[0] > 0, `dT/dt=${dr[0].toFixed(3)}`);
+  const igual = derivadaReal(Pn, 'radiacion')(0, [-10, -10]);
+  check("radiación nula cuando T = T_amb, también bajo cero", igual[0] === 0);
+}
+
 // ---------- 6. Exportación ----------
 (async () => {
   const hojas = [
@@ -156,4 +208,20 @@ print(("  ok    " if ok else "  FALLA ") + "cuatro hojas correctas  " + str(wb.s
 ws = wb['Datos']
 ok = ok and ws['A1'].value == 't (s)' and isinstance(ws['B2'].value, (int, float))
 print(("  ok    " if ok else "  FALLA ") + f"datos numéricos y encabezado  B2={ws['B2'].value!r}")
+
+# --- Revisión estática de la página: errores de interfaz que ya aparecieron una vez ---
+print("\n--- contenido de la página ---")
+texto = HTML.read_text(encoding="utf-8")
+def revisar(nombre, cond):
+    global ok
+    print(("  ok    " if cond else "  FALLA ") + nombre)
+    ok = ok and cond
+revisar("«Ir al equilibrio» conserva el estado auxiliar (ambiente en T_amb, no en 0 °C)",
+        "sim.real = [m.inf, estadoInicialReal(P)[1]]" in script)
+revisar("el modo examen no escribe el efecto en el selector y se puede abandonar",
+        "selEfecto.value = 'oculto'" in script and "function salirDeExamen" in script)
+revisar("el reloj de la simulación se adapta a τ", "modeloDe(P).tau / 100" in script)
+revisar("la ayuda no habla de ω₀ ni de ζ (texto copiado del laboratorio 02)", "ω₀ y ζ" not in texto)
+revisar("los PNG llevan fondo", "function exportarPNG" in script)
+print("\nRESULTADO:", "laboratorio verificado" if ok else "revisar el laboratorio")
 sys.exit(0 if ok else 1)
